@@ -12,8 +12,7 @@ import { navigate } from "../lib/router.js";
 import { useStore } from "../lib/store.js";
 import type { PlazaScene } from "../stage/runtime.js";
 import { LiveStage } from "../stage/LiveStage.js";
-import { FriendSprite } from "../ui/FriendSprite.js";
-import { Button, LinkButton } from "../ui/kit.js";
+import { Button, FriendPortrait, LinkButton } from "../ui/index.js";
 
 /** The landing screen. */
 export default function Landing() {
@@ -89,7 +88,7 @@ export default function Landing() {
             plaza.dispose();
           };
         }}
-        fallback={you ? <FriendSprite view={you} scale={10} /> : null}
+        fallback={you ? <FriendPortrait view={you} scale={10} /> : null}
       />
       <div className="landing-copy">
         <h1 className="display landing-title">Loose Pixels</h1>
@@ -101,7 +100,7 @@ export default function Landing() {
         <div className="landing-cta">
           <Button
             variant="now"
-            big
+            size="big"
             onClick={() => void play()}
             disabled={starting}
             data-testid="play-now"

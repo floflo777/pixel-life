@@ -6,7 +6,7 @@ import { useId } from "react";
 import type { PageProps } from "../app/routes.js";
 import { useServices } from "../app/services.js";
 import { useStore } from "../lib/store.js";
-import { Button, Card } from "../ui/kit.js";
+import { Button, Card } from "../ui/index.js";
 import { DEFAULT_SETTINGS, osReducedMotion, type Settings } from "./settings.js";
 
 function Toggle({

@@ -18,8 +18,7 @@ import { loadLoaners } from "../identity/loaners.js";
 import { navigate } from "../lib/router.js";
 import { useStore } from "../lib/store.js";
 import { LiveStage } from "../stage/LiveStage.js";
-import { FriendSprite } from "../ui/FriendSprite.js";
-import { Button, ErrorBox, LinkButton, Loading } from "../ui/kit.js";
+import { Button, ErrorState, FriendPortrait, LinkButton, Loading } from "../ui/index.js";
 import { venueIds } from "../venues/registry.js";
 import { doorAction, friendHref, homeHref, lastRoom, mendHref, rememberRoom, type DoorAction } from "./doors.js";
 import { fetchBelt } from "./home-api.js";
@@ -153,7 +152,7 @@ function Sky() {
         }}
         fallback={
           <div className="stage-fallback-card">
-            <FriendSprite view={vid.friend} scale={8} />
+            <FriendPortrait view={vid.friend} scale={8} />
             <p>This device can't draw The Sky (WebGL2). Every door is still here:</p>
             <nav className="sky-fallback-doors" aria-label="Doors">
               <LinkButton to="/play" variant="now">
@@ -191,12 +190,12 @@ function Sky() {
       )}
       {status.kind === "error" && (
         <div className="sky-error">
-          <ErrorBox message={`The Sky couldn't open: ${status.why}`} onRetry={() => setAttempt((a) => a + 1)} />
+          <ErrorState message={`The Sky couldn't open: ${status.why}`} onRetry={() => setAttempt((a) => a + 1)} />
         </div>
       )}
 
       <div className="sky-hud">
-        <LinkButton to="/play" variant="now" big aria-label="play Loose Pixels now">
+        <LinkButton to="/play" variant="now" size="big" aria-label="play Loose Pixels now">
           ▶ play
         </LinkButton>
         <div className="sky-emotes" role="group" aria-label="Emotes">

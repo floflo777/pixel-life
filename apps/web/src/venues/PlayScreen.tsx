@@ -17,7 +17,7 @@ import { errorMessage } from "../api/client.js";
 import { navigate } from "../lib/router.js";
 import { useStore } from "../lib/store.js";
 import { Coachmarks } from "../onboarding/index.js";
-import { Card, ErrorBox, LinkButton, Loading } from "../ui/kit.js";
+import { Card, ErrorState, LinkButton, Loading } from "../ui/index.js";
 import type { ReportedRun } from "./host.js";
 import { NativeVenueView } from "./NativeVenueView.js";
 import { nativeVenue, type VenueMode } from "./registry.js";
@@ -63,7 +63,7 @@ export default function PlayScreen({ search }: PageProps) {
   if (bootError)
     return (
       <div className="page">
-        <ErrorBox
+        <ErrorState
           message={`Couldn't load a loaned Friend: ${errorMessage(bootError)}`}
           onRetry={() => {
             setBootError(null);

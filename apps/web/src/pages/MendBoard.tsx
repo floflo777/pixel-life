@@ -82,7 +82,7 @@ export function mendRows(list: readonly MendCandidate[], now: number, viewer: To
 export function MendBoard({ friends, onRetry, mode, viewerTokenId, onMend, onOpen, now: fixedNow }: MendBoardProps) {
   const now = useNow(10_000, fixedNow);
   return (
-    <main className="pl-root pl-page" aria-label="Mend board">
+    <div className="pl-page">
       <header className="pl-page-head">
         <h1 className="pl-display pl-h1">mend well</h1>
         <SimulatedBadge mode={mode} />
@@ -173,6 +173,6 @@ export function MendBoard({ friends, onRetry, mode, viewerTokenId, onMend, onOpe
           );
         }}
       </RemoteView>
-    </main>
+    </div>
   );
 }

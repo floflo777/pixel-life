@@ -1,17 +1,14 @@
 /**
- * Pixel Life pages. Every page is prop-driven (data as `Remote<T>` + callbacks), so the shell wires them to its API
- * client, identity and router without the pages knowing about either. Suggested routes (GDD §6.1):
- * `/f/:tokenId` → FriendPage (+ RegrowFlow / MendFlow), `/mend` → MendBoard, `/board` → DailyBoard,
- * `/economy` → EconomyPage, `/market` → MarketPage, `/about` → AboutPage.
+ * Loose Pixels pages. Every view here is prop-driven (data as `Remote<T>` + callbacks) and unit-tested; the routed
+ * screens in `./routes/` wire them to the API, identity and router (see `app/routes.ts` for the URL of each). The home
+ * isle (`HomeIsle`) is not re-exported here: it pulls in the three.js stage, which only its own route should load.
  */
 export { AboutPage, type AboutPageProps, ONE_SENTENCE_RULE } from "./AboutPage.js";
 export { DailyBoard, type DailyBoardProps } from "./DailyBoard.js";
 export {
   GOLD_FLOOR_MICRO,
-  MARKET_FEES,
   MARKET_SELLER_BPS,
   marketParts,
-  marketSplit,
   MEND_PARTS,
   quoteParts,
   REGROW_PARTS,
@@ -20,7 +17,10 @@ export {
 } from "./economy.js";
 export { CONTRACTS, EconomyPage, type EconomyPageProps, LIVE_STATUS } from "./EconomyPage.js";
 export { FriendPage, type FriendPageProps, type Mender, mendersFromInbox, type Viewer } from "./FriendPage.js";
-export { inboxCopy } from "./inbox-copy.js";
-export { demoListings, type GoldListing, MarketPage, type MarketPageProps } from "./MarketPage.js";
+export { inboxCopy, inboxGlyph, inboxGroup, type InboxGroup, inboxHasRf } from "./inbox-copy.js";
+export { MarketPage, type MarketPageProps, parseRf } from "./MarketPage.js";
+export { Catalog, type CatalogProps, priceLabel } from "./Catalog.js";
+export { BeltLadder, StampBook, type StampBookProps, STAMP_TONE } from "./StampBook.js";
+export { cssColor, stampProgress, unlockProblem, unplaced } from "./meta-view.js";
 export { type MendBoardProps, type MendCandidate, MendBoard, mendRows, type MendRow } from "./MendBoard.js";
 export { firstPixels, MendFlow, type MendFlowProps, RegrowFlow, type SpendFlowProps } from "./SpendFlow.js";

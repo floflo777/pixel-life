@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { remote } from "../ui/index.js";
 import { AboutPage, ONE_SENTENCE_RULE } from "./AboutPage.js";
 import { EconomyPage } from "./EconomyPage.js";
-import { demoListings, type GoldListing, MarketPage } from "./MarketPage.js";
+import type { MarketBookRes, MarketListing, MarketMineRes } from "@pl/shared";
+import { MarketPage, parseRf } from "./MarketPage.js";
 
 afterEach(cleanup);
 const NOW = 1_700_000_000_000;
@@ -51,19 +52,56 @@ describe("EconomyPage", () => {
 });
 
 describe("MarketPage", () => {
-  const listing: GoldListing = {
-    id: "l1",
-    originTokenId: "65040",
-    sellerTokenId: "63675",
+  const listing: MarketListing = {
+    leafId: 11,
+    originFriendId: "65040",
+    seller: "63675",
     priceMicro: 50_000_000,
     listedAt: NOW - 3600_000,
   };
+  const book = (listings: MarketListing[] = [listing]): MarketBookRes => ({
+    mode: "sim",
+    simulated: true,
+    floorMicro: listings[0]?.priceMicro ?? null,
+    backingMicro: 45_000_000,
+    listings,
+    openListings: listings.length,
+    recentFills: [
+      {
+        kind: "Sold",
+        leafId: 9,
+        originFriendId: "65040",
+        buyer: "1969",
+        seller: "63675",
+        priceMicro: 48_000_000,
+        burnedMicro: 960_000,
+        toOriginMicro: 960_000,
+        toCreatorMicro: 480_000,
+        toSellerMicro: 45_600_000,
+        at: NOW - 60_000,
+      },
+    ],
+    volume24hMicro: 48_000_000,
+    fills24h: 1,
+    burned24hMicro: 960_000,
+    lastPriceMicro: 48_000_000,
+  });
+  const mine = (over: Partial<MarketMineRes> = {}): MarketMineRes => ({
+    simulated: true,
+    tokenId: "1969",
+    goldHeld: 2,
+    boughtLeafIds: [4],
+    listings: [],
+    royaltiesMicro: 960_000,
+    ...over,
+  });
 
-  it("confirms a simulated purchase with the fee split", async () => {
+  it("shows the book stats and confirms a simulated purchase at the exact price", async () => {
     const onBuy = vi.fn(async () => undefined);
     render(
       <MarketPage
-        listings={remote.ready([listing])}
+        book={remote.ready(book())}
+        mine={remote.ready(mine())}
         viewerTokenId="1969"
         balanceMicro={60_000_000}
         onBuy={onBuy}
@@ -71,7 +109,8 @@ describe("MarketPage", () => {
       />,
     );
     expect(screen.getAllByText("SIMULATED").length).toBeGreaterThan(0);
-    await userEvent.click(screen.getByRole("button", { name: "buy gold pixel for 50.00 RF" }));
+    expect(within(screen.getByRole("region", { name: "market stats" })).getByText("48.00 RF")).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "buy gold pixel 11 for 50.00 RF" }));
     const dialog = screen.getByRole("dialog", { name: "buy gold pixel" });
     expect(within(dialog).getByText("royalty to origin #65040")).toBeTruthy();
     expect(within(dialog).getByText("95 % · 47.50 RF")).toBeTruthy();
@@ -80,16 +119,16 @@ describe("MarketPage", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "buy · 50.00 RF" }));
     expect(onBuy).toHaveBeenCalledWith(listing);
     expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByText("no gold for sale")).toBeTruthy();
   });
 
   it("keeps a failed purchase open with the reason", async () => {
     const onBuy = vi.fn(async () => {
-      throw new Error("Listing already sold.");
+      throw new Error("The price changed. Check the new price and try again.");
     });
     render(
       <MarketPage
-        listings={remote.ready([listing])}
+        book={remote.ready(book())}
+        mine={remote.ready(mine())}
         viewerTokenId="1969"
         balanceMicro={null}
         onBuy={onBuy}
@@ -98,51 +137,72 @@ describe("MarketPage", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: /buy gold pixel/ }));
     await userEvent.click(screen.getByRole("button", { name: "buy · 50.00 RF" }));
-    expect((await screen.findByRole("alert")).textContent).toBe("Listing already sold.");
+    expect((await screen.findByRole("alert")).textContent).toMatch(/price changed/);
     expect(screen.getByRole("button", { name: "retry · 50.00 RF" })).toBeTruthy();
   });
 
-  it("lets guests browse only and blocks buying your own listing", () => {
+  it("lets guests browse only and offers cancel on your own ask", async () => {
+    const onCancel = vi.fn(async () => undefined);
     const { rerender } = render(
-      <MarketPage
-        listings={remote.ready([listing])}
-        viewerTokenId={null}
-        balanceMicro={null}
-        onBuy={async () => undefined}
-        now={NOW}
-      />,
+      <MarketPage book={remote.ready(book())} mine={null} viewerTokenId={null} balanceMicro={null} now={NOW} />,
     );
     expect(screen.getByRole("button", { name: /buy gold pixel/ })).toHaveProperty("disabled", true);
+    expect(screen.queryByRole("tab", { name: "my gold" })).toBeNull();
     rerender(
       <MarketPage
-        listings={remote.ready([listing])}
+        book={remote.ready(book())}
+        mine={remote.ready(mine())}
         viewerTokenId="63675"
         balanceMicro={null}
         onBuy={async () => undefined}
+        onCancel={onCancel}
         now={NOW}
       />,
     );
-    expect(screen.getByRole("button", { name: /buy gold pixel/ }).textContent).toBe("your listing");
+    await userEvent.click(screen.getByRole("button", { name: "take gold pixel 11 off the market" }));
+    expect(onCancel).toHaveBeenCalledWith(11);
   });
 
-  it("sorts by price or recency, and demo listings sit at or above the floor", async () => {
-    const list = demoListings(NOW, 5);
-    expect(list.every((l) => l.priceMicro >= 45_000_000)).toBe(true);
-    expect(demoListings(NOW, 5)).toEqual(list);
-    render(<MarketPage listings={remote.ready(list)} viewerTokenId={null} balanceMicro={null} now={NOW} />);
-    const prices = () =>
-      within(screen.getByRole("list", { name: "5 listings" }))
-        .getAllByRole("heading")
-        .map((h) => h.textContent);
-    const byPrice = [...list]
-      .sort((a, b) => a.priceMicro - b.priceMicro)
-      .map((l) => `${(l.priceMicro / 1e6).toFixed(2)} RF`);
-    expect(prices()).toEqual(byPrice);
-    await userEvent.click(screen.getByRole("tab", { name: "newest" }));
-    const byTime = [...list]
-      .sort((a, b) => b.listedAt - a.listedAt)
-      .map((l) => `${(l.priceMicro / 1e6).toFixed(2)} RF`);
-    expect(prices()).toEqual(byTime);
+  it("lists recent fills and an empty book", async () => {
+    render(<MarketPage book={remote.ready(book([]))} mine={null} viewerTokenId={null} balanceMicro={null} now={NOW} />);
+    expect(screen.getByText("no gold for sale")).toBeTruthy();
+    await userEvent.click(screen.getByRole("tab", { name: "recent sales" }));
+    expect(screen.getByRole("table").textContent).toContain("#63675 → #1969");
+  });
+
+  it("lists a bought Gold at a valid price and explains a bad one", async () => {
+    const onList = vi.fn(async () => undefined);
+    render(
+      <MarketPage
+        book={remote.ready(book())}
+        mine={remote.ready(mine())}
+        viewerTokenId="1969"
+        balanceMicro={null}
+        onList={onList}
+        now={NOW}
+      />,
+    );
+    await userEvent.click(screen.getByRole("tab", { name: "my gold" }));
+    const price = screen.getByRole("textbox", { name: "price (RF, simulated)" });
+    await userEvent.clear(price);
+    await userEvent.type(price, "40");
+    expect(screen.getByText(/The lowest ask is 45 RF/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^list/ })).toHaveProperty("disabled", true);
+    await userEvent.clear(price);
+    await userEvent.type(price, "52.5");
+    expect(screen.getByText(/You receive 49.87 RF/)).toBeTruthy();
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "which gold" }), "4");
+    await userEvent.click(screen.getByRole("button", { name: "list · 52.50 RF" }));
+    expect(onList).toHaveBeenCalledWith(52_500_000, 4);
+    expect(await screen.findByText("Listed for 52.50 RF (simulated).")).toBeTruthy();
+  });
+
+  it("parses RF amounts exactly", () => {
+    expect(parseRf("52.5")).toBe(52_500_000);
+    expect(parseRf("45")).toBe(45_000_000);
+    expect(parseRf("0,01")).toBe(10_000);
+    expect(parseRf("abc")).toBeNull();
+    expect(parseRf("1.1234567")).toBeNull();
   });
 });
 

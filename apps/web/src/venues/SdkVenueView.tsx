@@ -17,7 +17,7 @@ import { useServices } from "../app/services.js";
 import { errorMessage } from "../api/client.js";
 import { useStore } from "../lib/store.js";
 import { ROBINHOOD_CHAIN_ID, type OwnerFlow } from "../identity/owner-flow.js";
-import { Button, ErrorBox, Loading } from "../ui/kit.js";
+import { Button, ErrorState, Loading } from "../ui/index.js";
 
 function Booth({ venue, flow }: { venue: SdkFrameVenue; flow: OwnerFlow }) {
   const s = useServices();
@@ -77,7 +77,7 @@ function Booth({ venue, flow }: { venue: SdkFrameVenue; flow: OwnerFlow }) {
 /** Mounts `venue` for the bound owner (the caller shows the guest CTA). */
 export default function SdkVenueView({ venue }: { venue: SdkFrameVenue }) {
   const { flow, error } = useOwnerFlow();
-  if (error) return <ErrorBox message={`The wallet module failed to load: ${errorMessage(error)}`} />;
+  if (error) return <ErrorState message={`The wallet module failed to load: ${errorMessage(error)}`} />;
   if (!flow) return <Loading label="opening the booth" />;
   return <Booth venue={venue} flow={flow} />;
 }

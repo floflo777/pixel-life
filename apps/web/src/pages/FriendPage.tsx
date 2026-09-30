@@ -12,7 +12,6 @@ import {
   familyName,
   frontMask,
   type FriendView,
-  type InboxItem,
   MAX_VISIBLE_GOLD,
   nextRegrowthAt,
   popcount,
@@ -22,6 +21,7 @@ import {
   wholeAt,
 } from "@pl/shared";
 import { type ReactNode, useMemo } from "react";
+import type { AnyInboxItem } from "../api/client.js";
 import {
   Badge,
   Button,
@@ -64,7 +64,7 @@ export interface FriendPageProps {
   /** Owner's balance (micro-RF), shown next to Regrow. */
   balanceMicro?: number | null;
   /** Owner only. */
-  inbox?: Remote<readonly InboxItem[]>;
+  inbox?: Remote<readonly AnyInboxItem[]>;
   onInboxRetry?: () => void;
   onInboxRead?: (ids: readonly string[] | "all") => void;
   /** Recent menders; derived from the inbox's `mended` items when absent. */
@@ -74,12 +74,14 @@ export interface FriendPageProps {
   onSeedPack?: () => void;
   onOpenFriend?: (tokenId: TokenIdStr) => void;
   onShare?: () => void;
+  /** Extra cards after the page body (isle, stamps, belt). */
+  footer?: ReactNode;
   /** Pinned clock for tests. */
   now?: number;
 }
 
 /** Menders from inbox `mended` items younger than the stitch lifetime, newest first. */
-export function mendersFromInbox(items: readonly InboxItem[], now: number): Mender[] {
+export function mendersFromInbox(items: readonly AnyInboxItem[], now: number): Mender[] {
   const out: Mender[] = [];
   for (const it of items) {
     if (it.kind === "mended" && now - it.createdAt < STITCH_VISIBLE_MS)
@@ -115,7 +117,7 @@ function FriendSkeleton() {
 /** The public Friend page. */
 export function FriendPage(props: FriendPageProps) {
   return (
-    <main className="pl-root pl-page" aria-label="Friend">
+    <div className="pl-page">
       <RemoteView
         value={props.friend}
         {...(props.onRetry ? { onRetry: props.onRetry } : {})}
@@ -123,7 +125,8 @@ export function FriendPage(props: FriendPageProps) {
       >
         {(view) => <FriendBody {...props} view={view} />}
       </RemoteView>
-    </main>
+      {props.footer}
+    </div>
   );
 }
 

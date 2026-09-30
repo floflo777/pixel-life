@@ -9,6 +9,7 @@ import { createProgressBook, type ProgressBook } from "../meta/progress.js";
 import { createShellAudio, type ShellAudio } from "../settings/audio.js";
 import { createSettings, type Settings } from "../settings/settings.js";
 import { createStore, type Store } from "../lib/store.js";
+import { createMetaBook, type MetaBook } from "./meta.js";
 
 /** A transient message in the toast area (`role="status"`). */
 export interface Toast {
@@ -35,6 +36,8 @@ export interface Services {
   settings: Store<Settings>;
   audio: ShellAudio;
   progress: ProgressBook;
+  /** The owner's server-side Bits, isle, stamps and belt (`GET /api/meta/me`). */
+  meta: MetaBook;
   toasts: Store<readonly Toast[]>;
   confirmations: Store<Confirmation | null>;
   toast(text: string, tone?: Toast["tone"]): void;
@@ -63,6 +66,7 @@ export function createServices(): Services {
   return {
     api,
     identity,
+    meta: createMetaBook(api, identity),
     settings,
     audio: createShellAudio(settings),
     progress: createProgressBook(),

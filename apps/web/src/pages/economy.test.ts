@@ -1,7 +1,7 @@
-import { BPS, fromIndices, quote } from "@pl/shared";
+import { BPS, fromIndices, marketSplit, quote } from "@pl/shared";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { GOLD_FLOOR_MICRO, marketParts, marketSplit, MARKET_SELLER_BPS, quoteParts, seedPackFacts } from "./economy.js";
+import { GOLD_FLOOR_MICRO, marketParts, MARKET_SELLER_BPS, quoteParts, seedPackFacts } from "./economy.js";
 import { inboxCopy } from "./inbox-copy.js";
 
 describe("quoteParts", () => {
@@ -25,25 +25,23 @@ describe("quoteParts", () => {
   });
 });
 
-describe("market split", () => {
-  it("always sums to the price with fees rounded down (property)", () => {
+describe("market parts", () => {
+  it("mirror the shared market split exactly and sum to the price (property)", () => {
     fc.assert(
-      fc.property(fc.integer({ min: 0, max: 1e12 }), (price) => {
+      // Up to 100 000 RF: ten times the highest ask the market accepts.
+      fc.property(fc.integer({ min: 0, max: 1e11 }), (price) => {
+        const parts = marketParts(price, "7");
         const s = marketSplit(price);
-        expect(s.burn + s.origin + s.creator + s.seller).toBe(price);
-        expect(s.burn).toBe(Math.floor(price * 0.02));
-        expect(s.seller).toBeGreaterThanOrEqual(Math.floor((price * MARKET_SELLER_BPS) / BPS));
+        expect(parts.reduce((t, p) => t + (p.micro ?? 0), 0)).toBe(price);
+        expect(parts[0]?.micro).toBe(s.toSellerMicro);
+        expect(parts.reduce((t, p) => t + p.bps, 0)).toBe(BPS);
       }),
     );
   });
-  it("uses the tokenomics fee: 95 / 2 / 2 / 1", () => {
-    expect(marketSplit(100_000_000)).toEqual({
-      burn: 2_000_000,
-      origin: 2_000_000,
-      creator: 1_000_000,
-      seller: 95_000_000,
-    });
+  it("uses the tokenomics fee: 95 / 2 / 2 / 1 and the 45 RF floor", () => {
+    expect(marketParts(100_000_000).map((p) => p.micro)).toEqual([95_000_000, 2_000_000, 2_000_000, 1_000_000]);
     expect(marketParts().map((p) => p.bps)).toEqual([9500, 200, 200, 100]);
+    expect(MARKET_SELLER_BPS).toBe(9500);
     expect(GOLD_FLOOR_MICRO).toBe(45_000_000);
   });
 });
@@ -79,5 +77,31 @@ describe("inboxCopy", () => {
     ).toBe("#1969 mended #344030's left ear and paid it 0.50 RF simulated.");
     expect(inboxCopy({ ...base, kind: "whole" })).toBe("#344030 is whole again.");
     expect(inboxCopy({ ...base, kind: "streak_risk", streak: 9 })).toBe("your 9-day halo fades tomorrow.");
+    expect(
+      inboxCopy({
+        ...base,
+        kind: "market_sold",
+        mode: "sim",
+        leafId: 3,
+        buyer: "7",
+        priceMicro: 50_000_000,
+        toSellerMicro: 47_500_000,
+        toOriginMicro: 1_000_000,
+      }),
+    ).toBe("#7 bought your Gold Pixel (leaf 3) for 50.00 RF simulated: #344030 got 47.50 RF.");
+    expect(
+      inboxCopy({
+        ...base,
+        kind: "market_royalty",
+        mode: "sim",
+        leafId: 3,
+        buyer: "7",
+        seller: "8",
+        priceMicro: 50_000_000,
+        toOriginMicro: 1_000_000,
+      }),
+    ).toMatch(/royalty/);
+    // A kind from a newer server still renders.
+    expect(inboxCopy({ ...base, kind: "stamp_earned" } as unknown as Parameters<typeof inboxCopy>[0])).toMatch(/new/);
   });
 });

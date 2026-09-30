@@ -23,12 +23,25 @@ describe("router", () => {
     expect(() => href("missing")).toThrow();
   });
 
-  it("has unique names and paths; shell routes always load, pages routes may be pending", () => {
+  it("has unique names and paths, and every route loads a screen", () => {
     expect(new Set(ROUTES.map((r) => r.name)).size).toBe(ROUTES.length);
     expect(new Set(ROUTES.map((r) => r.path)).size).toBe(ROUTES.length);
-    for (const r of ROUTES) {
-      if (r.owner === "shell") expect(loaderOf(r)).toBeTypeOf("function");
-      else expect(r.page).toMatch(/^[A-Z]\w+Page$/);
-    }
+    for (const r of ROUTES) expect(loaderOf(r)).toBeTypeOf("function");
   });
+
+  it("routes the meta, market and mend pages", () => {
+    expect(resolveRoute("/home")?.route.name).toBe("home");
+    expect(resolveRoute("/home/7")).toMatchObject({ route: { name: "isle" }, params: { tokenId: "7" } });
+    expect(resolveRoute("/stamps/7")?.route.name).toBe("stampsOf");
+    expect(resolveRoute("/mend/7")).toMatchObject({ route: { name: "mendFriend" }, params: { tokenId: "7" } });
+    expect(resolveRoute("/market")?.route.name).toBe("market");
+    expect(resolveRoute("/inbox")?.route.owner).toBe("pages");
+  });
+
+  it("loads every pages screen module with a default export", async () => {
+    for (const r of ROUTES.filter((x) => x.owner === "pages")) {
+      const mod = await r.load();
+      expect(mod.default, r.name).toBeTypeOf("function");
+    }
+  }, 30_000);
 });

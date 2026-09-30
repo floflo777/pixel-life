@@ -39,7 +39,7 @@ export interface FriendPortraitProps {
   selection?: PortraitSelection;
   /** Scars drawn as "about to be filled" without being interactive (confirm screens). */
   highlight?: Hex64;
-  /** Accessible name override. */
+  /** Accessible name override; `""` hides a decorative portrait (the surrounding control names it). */
   label?: string;
   /** Draw inside a paper frame with an ink border. */
   framed?: boolean;
@@ -166,7 +166,9 @@ export function FriendPortrait({
       style={{ width: geo.size, height: geo.size }}
       {...(selection
         ? { role: "group", "aria-label": `${name}. Choose missing pixels.` }
-        : { role: "img", "aria-label": name })}
+        : name === ""
+          ? { "aria-hidden": true }
+          : { role: "img", "aria-label": name })}
     >
       <canvas
         ref={canvas}

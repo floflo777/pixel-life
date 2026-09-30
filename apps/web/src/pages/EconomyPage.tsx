@@ -127,7 +127,7 @@ export function EconomyPage({ mode, stats, onRetryStats, now: fixedNow }: Econom
   const maxChance = Math.max(...seed.rows.map((r) => r.chanceBps));
 
   return (
-    <main className="pl-root pl-page" aria-label="Economy and odds">
+    <div className="pl-page">
       <header className="pl-page-head">
         <h1 className="pl-display pl-h1">economy & odds</h1>
         <SimulatedBadge mode={mode} />
@@ -372,6 +372,6 @@ export function EconomyPage({ mode, stats, onRetryStats, now: fixedNow }: Econom
           </RemoteView>
         </Card>
       )}
-    </main>
+    </div>
   );
 }

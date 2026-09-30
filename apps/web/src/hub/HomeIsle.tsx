@@ -16,8 +16,7 @@ import { useServices } from "../app/services.js";
 import { ApiRequestError, errorMessage } from "../api/client.js";
 import { useAsync } from "../lib/use-async.js";
 import { LiveStage } from "../stage/LiveStage.js";
-import { FriendSprite } from "../ui/FriendSprite.js";
-import { ErrorBox, LinkButton, Loading } from "../ui/kit.js";
+import { ErrorState, FriendPortrait, LinkButton, Loading } from "../ui/index.js";
 import { friendHref } from "./doors.js";
 import { fetchHome, recordVisit } from "./home-api.js";
 
@@ -68,7 +67,7 @@ export function HomeIsle({ tokenId }: { tokenId: TokenIdStr }) {
   if (data.status === "error")
     return (
       <div className="page">
-        <ErrorBox message={`Couldn't reach #${tokenId}'s island: ${errorMessage(data.error)}`} onRetry={data.retry} />
+        <ErrorState message={`Couldn't reach #${tokenId}'s island: ${errorMessage(data.error)}`} onRetry={data.retry} />
         {back}
       </div>
     );
@@ -106,7 +105,7 @@ export function HomeIsle({ tokenId }: { tokenId: TokenIdStr }) {
             dispose?.();
           };
         }}
-        fallback={<FriendSprite view={view} scale={8} />}
+        fallback={<FriendPortrait view={view} scale={8} />}
       />
       <div className="sky-top mono">
         <span className="display">#{tokenId}'s island</span>

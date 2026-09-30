@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { Button } from "./Button.js";
 import { cx } from "./cx.js";
 
@@ -75,6 +75,38 @@ export function Skeleton({
   style?: CSSProperties;
 }) {
   return <span aria-hidden="true" className={cx("pl-skeleton", className)} style={{ width, height, ...style }} />;
+}
+
+const SPIN = ["|", "/", "-", "\\"] as const;
+
+/**
+ * Inline loading line: the stepped ASCII spinner of GDD §6.10 and a label. The spinner freezes under reduced motion
+ * (the glyph is hidden from assistive tech; the label is announced politely).
+ */
+export function Loading({ label = "loading" }: { label?: string }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((n) => (n + 1) % SPIN.length), 120);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <p className="pl-loading pl-mono" role="status" aria-live="polite">
+      <span aria-hidden="true" className="pl-spinner">
+        {SPIN[i]}
+      </span>{" "}
+      {label}…
+    </p>
+  );
+}
+
+/** A labelled value in a stat row ("score  1 240"). */
+export function Stat({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="pl-stat">
+      <span className="pl-label">{label}</span>
+      <span className="pl-stat-value">{children}</span>
+    </div>
+  );
 }
 
 /** A labelled loading region made of skeleton lines. */
