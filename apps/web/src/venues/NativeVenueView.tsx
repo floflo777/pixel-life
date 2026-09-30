@@ -11,18 +11,20 @@ import { LiveStage } from "../stage/LiveStage.js";
 import { FriendSprite } from "../ui/FriendSprite.js";
 import { ErrorBox } from "../ui/kit.js";
 import { createVenueHost, type ReportedRun } from "./host.js";
-import type { NativeVenueEntry } from "./registry.js";
+import type { NativeVenueEntry, VenueMode } from "./registry.js";
 
 /** Props of {@link NativeVenueView}. */
 export interface NativeVenueViewProps {
   entry: NativeVenueEntry;
+  /** Free run or today's Daily (from the door). */
+  mode: VenueMode;
   identity: VenueIdentity;
   onReported(run: ReportedRun): void;
   onExit(reason: "done" | "quit"): void;
 }
 
 /** A native venue on a live stage. */
-export function NativeVenueView({ entry, identity, onReported, onExit }: NativeVenueViewProps) {
+export function NativeVenueView({ entry, mode, identity, onReported, onExit }: NativeVenueViewProps) {
   const services = useServices();
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -66,7 +68,7 @@ export function NativeVenueView({ entry, identity, onReported, onExit }: NativeV
         let gone = false;
         const host = createVenueHost({ services, identity, stage, paused: paused.signal, onReported, onExit });
         entry
-          .load()
+          .load({ mode })
           .then((venue) => venue.mount(host))
           .then(
             (inst) => {

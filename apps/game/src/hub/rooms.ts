@@ -13,7 +13,7 @@ import { SUN_DIRECTION } from "../stage/lights";
 import { buildClouds, type CloudSpec } from "../world/clouds";
 import { buildIsland, islandCells, type IslandModel, type IslandSpec } from "../world/island";
 import type { PropSpec } from "../world/props";
-import { VoxelMesher } from "../world/voxel-mesher";
+import { DECOR, VoxelMesher } from "../world/voxel-mesher";
 import type { FocusBounds } from "./camera";
 import { toWorld, WORLD_PER_WIRE, type GroundPoint } from "./coords";
 import type { DoorZone } from "./doors";
@@ -37,6 +37,66 @@ export const PIXEL_LIFE_ICON: readonly string[] = [
   ".....##..##.....",
   ".....##..##.....",
   "....###..###....",
+  "................",
+];
+
+/** Sign icon of the Bump Sumo hall: a round Friend in a sumo stance with its mawashi belt. */
+export const BUMP_SUMO_ICON: readonly string[] = [
+  "................",
+  "......####......",
+  ".....######.....",
+  ".....#.##.#.....",
+  ".....######.....",
+  "......####......",
+  "...##########...",
+  "..############..",
+  ".###.######.###.",
+  ".##..######..##.",
+  "....########....",
+  "....#......#....",
+  "....########....",
+  "....###..###....",
+  "...###....###...",
+  "................",
+];
+
+/** Sign icon of the Pixel Putt hall: a flag over its hole on a floating green. */
+export const PIXEL_PUTT_ICON: readonly string[] = [
+  "................",
+  ".......#........",
+  ".......####.....",
+  ".......######...",
+  ".......####.....",
+  ".......#........",
+  ".......#........",
+  ".......#........",
+  ".......#........",
+  ".....#####......",
+  "................",
+  "..############..",
+  ".#####....#####.",
+  "..############..",
+  "....########....",
+  "................",
+];
+
+/** Sign icon of the Handheld Arcade: the 1-bit handheld with its screen and buttons. */
+export const HANDHELD_ICON: readonly string[] = [
+  "................",
+  "...##########...",
+  "...#........#...",
+  "...#.######.#...",
+  "...#.#....#.#...",
+  "...#.#....#.#...",
+  "...#.######.#...",
+  "...#........#...",
+  "...#.#....#.#...",
+  "...####..#..#...",
+  "...#.#..#.#.#...",
+  "...#........#...",
+  "...#..##.##.#...",
+  "...#........#...",
+  "...##########...",
   "................",
 ];
 
@@ -91,6 +151,47 @@ interface Layout {
   readonly bounds: FocusBounds;
   readonly restRadius: { readonly rx: number; readonly rz: number };
   readonly well?: GroundPoint;
+  /** Venue halls built only when the shell ships that venue (GDD §11: no "coming soon" scaffolds on the map). */
+  readonly optional?: readonly OptionalDoor[];
+}
+
+/** A venue door that exists only when its venue is enabled: its hall prop, doormat zone and labels. */
+interface OptionalDoor {
+  readonly venueId: string;
+  readonly props: readonly PropSpec[];
+  readonly zone: DoorZone & { readonly spawn: readonly [number, number] };
+  readonly labels: (island: IslandModel) => RoomLabel[];
+}
+
+/** Venue ids of every optional door, by room (the shell's registry decides which are built). */
+export function optionalVenues(slug: RoomSlug): readonly string[] {
+  return (LAYOUTS[slug].optional ?? []).map((o) => o.venueId);
+}
+
+/** Lime doormat (the one lime floor in the world: "walk here to enter") in front of a kiosk or board door. */
+function doormat(m: VoxelMesher, x: number, z: number): void {
+  m.box([x, 0.015, z], [0.8, 0.03, 0.4], PALETTE.signal, DECOR);
+}
+
+/** The hall of an optional venue (a world-kit venue building) with its marquee and live-count pill. */
+function hallDoor(
+  venueId: string,
+  title: string,
+  icon: readonly string[],
+  at: { readonly x: number; readonly z: number; readonly facing: 0 | 1 | 2 | 3 },
+  zone: { readonly area: readonly (readonly [number, number])[]; readonly spawn: readonly [number, number] },
+  roof: { readonly roof: number; readonly roofDark: number },
+): OptionalDoor {
+  const doorId = `venue-${venueId}`;
+  return {
+    venueId,
+    props: [{ kind: "venue", x: at.x, z: at.z, facing: at.facing, name: venueId, icon, ...roof }],
+    zone: { id: doorId, kind: "venue", target: venueId, area: zone.area, spawn: zone.spawn },
+    labels: (i) => [
+      { id: `${venueId}-marquee`, kind: "marquee", title, at: anchor(i, `${venueId}:marquee`) },
+      { id: `${venueId}-pill`, kind: "pill", title: "enter", at: anchor(i, `${venueId}:pill`), doorId, venueId },
+    ],
+  };
 }
 
 const W = (wx: number, wz: number): GroundPoint => toWorld(wx, wz);
@@ -148,6 +249,9 @@ export function coveringSeed(
 
 // ── Plaza ────────────────────────────────────────────────────────────────────────────────────────────────────────
 const PLAZA_HALL_Z = -9.3;
+/** East rim halls (doors facing west) and west rim halls (doors facing east), either side of the bridges. */
+const PLAZA_EAST_X = 9.3;
+const PLAZA_WEST_X = -7.6;
 const plaza: Layout = {
   island: {
     radius: 48,
@@ -168,6 +272,11 @@ const plaza: Layout = {
   cover: [
     ...landSamples(HUB_NAVMESHES.plaza, (p) => Math.sqrt(p.x * p.x + p.z * p.z) < 8.2),
     ...[-2, 0, 2].flatMap((x) => [PLAZA_HALL_Z - 0.9, PLAZA_HALL_Z, PLAZA_HALL_Z + 0.8].map((z) => ({ x, z }))),
+    // The rim halls stand on land whether or not they are built, so the island never changes shape.
+    ...[-4, -2, 0, 2, 4].flatMap((z) => [PLAZA_EAST_X - 0.8, PLAZA_EAST_X, PLAZA_EAST_X + 0.8].map((x) => ({ x, z }))),
+    ...[-6.1, -4.2, -2.3, 2.3, 4.2, 6.1].flatMap((z) =>
+      [PLAZA_WEST_X - 0.8, PLAZA_WEST_X, PLAZA_WEST_X + 0.8].map((x) => ({ x, z })),
+    ),
   ],
   props: [
     { kind: "venue", x: 0, z: PLAZA_HALL_Z, name: "pixel-life", icon: PIXEL_LIFE_ICON, popPixel: [8, 12] },
@@ -175,10 +284,10 @@ const plaza: Layout = {
     { kind: "board", x: 5.6, z: -1.6, name: "notice-board", facing: 3 },
     { kind: "tree", x: -3.7, z: -9.6, canopy: "meadow", radius: 0.75, trunk: 6, seed: 7 },
     { kind: "tree", x: 4.7, z: -8.6, canopy: "paper", radius: 0.8, trunk: 5, seed: 8 },
-    { kind: "tree", x: -8.6, z: -3.6, canopy: "paper", radius: 0.85, trunk: 5, seed: 3 },
-    { kind: "tree", x: 8.9, z: -3.3, canopy: "meadow", radius: 0.75, trunk: 5, seed: 4 },
-    { kind: "tree", x: -9.1, z: 3.6, canopy: "sun", radius: 0.65, trunk: 4, seed: 5 },
-    { kind: "tree", x: 8.7, z: 4.4, canopy: "paper", radius: 0.7, trunk: 4, seed: 6 },
+    { kind: "tree", x: -6.4, z: -7.2, canopy: "paper", radius: 0.85, trunk: 5, seed: 3 },
+    { kind: "tree", x: 8.2, z: -5.9, canopy: "meadow", radius: 0.75, trunk: 5, seed: 4 },
+    { kind: "tree", x: -6.8, z: 7.3, canopy: "sun", radius: 0.65, trunk: 4, seed: 5 },
+    { kind: "tree", x: 8.0, z: 6.0, canopy: "paper", radius: 0.7, trunk: 4, seed: 6 },
     { kind: "tree", x: -5.4, z: 8.0, canopy: "sun", radius: 0.6, trunk: 4, seed: 9 },
     { kind: "tree", x: 6.0, z: 7.6, canopy: "meadow", radius: 0.6, trunk: 4, seed: 10 },
     { kind: "bench", x: -2.8, z: 8.5 },
@@ -192,6 +301,7 @@ const plaza: Layout = {
   extras: (m) => {
     fountain(m, 0, 0, 1.25);
     stageDisc(m, -3.6, 3.6, 1.2);
+    doormat(m, 2.6, 4.1); // Daily Stone
   },
   bridges: [
     { from: W(-800, -1900), to: W(-800, -3150) },
@@ -207,6 +317,14 @@ const plaza: Layout = {
       area: rect(-180, -1985, 180, -1810),
       spawn: [0, -1500],
     },
+    // Daily Stone: the doormat in front of the stone opens the Daily board.
+    {
+      id: "venue-daily-stone",
+      kind: "venue",
+      target: "daily-stone",
+      area: rect(500, 960, 800, 1110),
+      spawn: [650, 1350],
+    },
   ],
   labels: (i) => [
     { id: "pl-marquee", kind: "marquee", title: "LOOSE PIXELS", at: anchor(i, "pixel-life:marquee") },
@@ -218,7 +336,15 @@ const plaza: Layout = {
       doorId: "venue-plaza-pixel-life",
       venueId: "pixel-life",
     },
-    { id: "daily", kind: "sign", title: "DAILY STONE", sub: "", live: "daily", at: anchor(i, "daily-stone:label") },
+    {
+      id: "daily",
+      kind: "sign",
+      title: "DAILY STONE",
+      sub: "",
+      live: "daily",
+      at: anchor(i, "daily-stone:label"),
+      doorId: "venue-daily-stone",
+    },
     { id: "notice", kind: "sign", title: "NOTICE BOARD", sub: "open isles", at: anchor(i, "notice-board:label") },
   ],
   background: [
@@ -235,6 +361,41 @@ const plaza: Layout = {
   ],
   bounds: { minX: -5.5, maxX: 5.5, minZ: -6.2, maxZ: 6.5 },
   restRadius: { rx: 10.1, rz: 10.1 },
+  // The main island shows the games (GDD §11: a Club Penguin-like plaza): Loose Pixels north, two halls on each rim.
+  optional: [
+    hallDoor(
+      "handheld",
+      "HANDHELD ARCADE",
+      HANDHELD_ICON,
+      { x: PLAZA_EAST_X, z: -2.1, facing: 3 },
+      { area: rect(1700, -705, 1850, -345), spawn: [1450, -525] },
+      { roof: PALETTE.lilac, roofDark: PALETTE.lilacDark },
+    ),
+    hallDoor(
+      "seed-pack",
+      "SEED PACK",
+      SEED_ICON(),
+      { x: PLAZA_EAST_X, z: 2.1, facing: 3 },
+      { area: rect(1700, 345, 1850, 705), spawn: [1450, 525] },
+      { roof: PALETTE.sun, roofDark: 0xd9b050 },
+    ),
+    hallDoor(
+      "bump-sumo",
+      "BUMP SUMO",
+      BUMP_SUMO_ICON,
+      { x: PLAZA_WEST_X, z: -4.2, facing: 1 },
+      { area: rect(-1580, -1190, -1440, -910), spawn: [-1250, -1050] },
+      { roof: PALETTE.pond, roofDark: 0x5f98c0 },
+    ),
+    hallDoor(
+      "pixel-putt",
+      "PIXEL PUTT",
+      PIXEL_PUTT_ICON,
+      { x: PLAZA_WEST_X, z: 4.2, facing: 1 },
+      { area: rect(-1580, 910, -1440, 1190), spawn: [-1250, 1050] },
+      { roof: PALETTE.meadowDrip, roofDark: PALETTE.meadowTuft },
+    ),
+  ],
 };
 
 // ── Satellites: 30 × 24 u isles (12 × 9.6 world) ────────────────────────────────────────────────────────────────
@@ -256,6 +417,9 @@ const satClouds: CloudSpec[] = [
 ];
 const southBridge: Bridge = { from: W(0, 1000), to: W(0, 2350) };
 
+/** The side hall on the arena isle sits just off its −6 u rim, door facing in (doormat at x = −5.6). */
+const ARENA_SIDE_X = 6.75;
+
 const pixelArena: Layout = {
   island: {
     ...SAT_ISLAND,
@@ -268,7 +432,13 @@ const pixelArena: Layout = {
       ],
     },
   },
-  cover: satCover("pixel-arena", [W(-950, -1400), W(950, -1400), W(0, -1600)]),
+  cover: satCover("pixel-arena", [
+    W(-950, -1400),
+    W(950, -1400),
+    W(0, -1600),
+    // West side hall (Bump Sumo): always land, built or not.
+    ...[-1.9, 0, 1.9].flatMap((z) => [-6.0, -6.75, -7.5].map((x) => ({ x, z }))),
+  ]),
   props: [
     { kind: "venue", x: 0, z: -5.7, name: "pixel-life", icon: PIXEL_LIFE_ICON, popPixel: [8, 12] },
     { kind: "tree", x: -5.6, z: -3.4, canopy: "meadow", radius: 0.7, trunk: 5, seed: 71 },
@@ -314,6 +484,16 @@ const pixelArena: Layout = {
   clouds: satClouds,
   bounds: satBounds,
   restRadius: { rx: 7.4, rz: 6.0 },
+  optional: [
+    hallDoor(
+      "bump-sumo",
+      "BUMP SUMO",
+      BUMP_SUMO_ICON,
+      { x: -ARENA_SIDE_X, z: 0, facing: 1 },
+      { area: rect(-1480, -160, -1320, 160), spawn: [-1050, 150] },
+      { roof: PALETTE.pond, roofDark: 0x5f98c0 },
+    ),
+  ],
 };
 
 const seedBooth: Layout = {
@@ -337,9 +517,14 @@ const seedBooth: Layout = {
     { kind: "lamp", x: -1.6, z: 2.8 },
     { kind: "lamp", x: 1.6, z: 2.8 },
   ],
-  extras: (m) => planter(m, -3.2, 1.2, 0.8),
+  extras: (m) => {
+    planter(m, -3.2, 1.2, 0.8);
+    doormat(m, 3.0, -0.55); // Greenhouse kiosk
+  },
   bridges: [southBridge],
-  venueZones: [],
+  venueZones: [
+    { id: "venue-greenhouse", kind: "venue", target: "greenhouse", area: rect(600, -190, 900, -40), spawn: [750, 200] },
+  ],
   labels: (i) => [
     { id: "sp-marquee", kind: "marquee", title: "SEED PACK", at: anchor(i, "seed-pack:marquee") },
     {
@@ -350,7 +535,14 @@ const seedBooth: Layout = {
       doorId: "venue-seed-pack",
       venueId: "seed-pack",
     },
-    { id: "gh", kind: "sign", title: "GREENHOUSE", sub: "regrow · seeds", at: anchor(i, "greenhouse:label") },
+    {
+      id: "gh",
+      kind: "sign",
+      title: "GREENHOUSE",
+      sub: "regrow · seeds",
+      at: anchor(i, "greenhouse:label"),
+      doorId: "venue-greenhouse",
+    },
   ],
   background: satBackground,
   clouds: satClouds,
@@ -358,9 +550,16 @@ const seedBooth: Layout = {
   restRadius: { rx: 7.4, rz: 6.0 },
 };
 
+/** Pixel Putt's hall on the sky docks' north rim (doormat at wire x = −125). */
+const DOCKS_PUTT_X = -0.5;
+
 const skyDocks: Layout = {
   island: { ...SAT_ISLAND, seed: 101, pond: { i: 18, j: -12, r: 3 } },
-  cover: satCover("sky-docks"),
+  // The Pixel Putt hall (north rim) stands on land whether or not it is built.
+  cover: satCover(
+    "sky-docks",
+    [-2.4, -0.5, 1.4].flatMap((x) => [-6.5, -5.7, -4.9].map((z) => ({ x, z }))),
+  ),
   props: [
     { kind: "board", x: -3.6, z: -3.4, name: "mend-board" },
     { kind: "tree", x: -5.6, z: 2.8, canopy: "paper", radius: 0.7, trunk: 5, seed: 111 },
@@ -368,9 +567,20 @@ const skyDocks: Layout = {
     { kind: "bench", x: 1.6, z: 3.2 },
     { kind: "lamp", x: 0.9, z: -1.9 },
   ],
-  extras: (m) => mendWell(m, -0.8, 0, 1.3),
+  extras: (m) => {
+    mendWell(m, -0.8, 0, 1.3);
+    doormat(m, -3.6, -2.85); // Mend board
+  },
   bridges: [{ from: W(1400, 0), to: W(2650, 0) }],
-  venueZones: [],
+  venueZones: [
+    {
+      id: "venue-mend-board",
+      kind: "venue",
+      target: "mend-board",
+      area: rect(-1050, -790, -750, -640),
+      spawn: [-900, -350],
+    },
+  ],
   labels: (i) => [
     { id: "well", kind: "sign", title: "MEND WELL", sub: "tap a bubble to mend", at: new Vector3(-0.8, 1.2, 1.4) },
     {
@@ -379,6 +589,7 @@ const skyDocks: Layout = {
       title: "MEND BOARD",
       sub: "stitches last 7 days",
       at: anchor(i, "mend-board:label"),
+      doorId: "venue-mend-board",
     },
   ],
   background: satBackground,
@@ -386,6 +597,17 @@ const skyDocks: Layout = {
   bounds: satBounds,
   restRadius: { rx: 7.4, rz: 6.0 },
   well: { x: -0.8, z: 0 },
+  optional: [
+    // Scarless mini-golf by the Mend Well: the relaxed venue for healing days (GDD §11.8 A).
+    hallDoor(
+      "pixel-putt",
+      "PIXEL PUTT",
+      PIXEL_PUTT_ICON,
+      { x: DOCKS_PUTT_X, z: -5.7, facing: 0 },
+      { area: rect(-305, -1180, 55, -1010), spawn: [-125, -700] },
+      { roof: PALETTE.meadowDrip, roofDark: PALETTE.meadowTuft },
+    ),
+  ],
 };
 
 const dailyGate: Layout = {
@@ -453,8 +675,19 @@ export function roomLayout(slug: RoomSlug): Layout {
   return LAYOUTS[slug];
 }
 
-/** Door zones of a room: navmesh doors plus the layout's client venue doormats. */
-export function roomZones(slug: RoomSlug): RoomView["zones"] {
+/**
+ * Which optional venue doors to build: a set of venue ids, or `undefined` for every door (dev pages, tests). Core doors
+ * (Loose Pixels, Seed Pack, Greenhouse, Daily Stone, Mend board, bridges) are always built.
+ */
+export type EnabledVenues = ReadonlySet<string> | undefined;
+
+/** The optional doors of a room that `venues` enables. */
+function enabledOptional(slug: RoomSlug, venues: EnabledVenues): readonly OptionalDoor[] {
+  return (LAYOUTS[slug].optional ?? []).filter((o) => !venues || venues.has(o.venueId));
+}
+
+/** Door zones of a room: navmesh doors plus the layout's client venue doormats (and the enabled optional halls). */
+export function roomZones(slug: RoomSlug, venues?: EnabledVenues): RoomView["zones"] {
   return [
     ...HUB_NAVMESHES[slug].doors.map((d) => ({
       id: d.id,
@@ -465,6 +698,7 @@ export function roomZones(slug: RoomSlug): RoomView["zones"] {
       ...(d.mode !== undefined ? { mode: d.mode } : {}),
     })),
     ...LAYOUTS[slug].venueZones,
+    ...enabledOptional(slug, venues).map((o) => o.zone),
   ];
 }
 
@@ -490,13 +724,17 @@ function restingSpots(slug: RoomSlug, island: IslandModel, ring: { rx: number; r
   return out;
 }
 
-/** Builds a room's static world (islands, props, extras, bridges, gates, clouds) and its overlay data. */
-export function buildRoom(slug: RoomSlug): RoomView {
+/**
+ * Builds a room's static world (islands, props, extras, bridges, gates, clouds) and its overlay data. `venues` picks
+ * the optional venue halls to build (default: all).
+ */
+export function buildRoom(slug: RoomSlug, venues?: EnabledVenues): RoomView {
   const L = LAYOUTS[slug];
+  const optional = enabledOptional(slug, venues);
   const root = new Group();
   root.name = `hub-room-${slug}`;
   const seed = coveringSeed(L.island, L.island.seed, L.cover);
-  const island = buildIsland({ ...L.island, seed, props: L.props });
+  const island = buildIsland({ ...L.island, seed, props: [...L.props, ...optional.flatMap((o) => o.props)] });
   root.add(island.object);
   const islands: IslandModel[] = [island];
   for (const b of L.background) {
@@ -519,8 +757,8 @@ export function buildRoom(slug: RoomSlug): RoomView {
   const m = new VoxelMesher();
   L.extras(m);
   for (const b of L.bridges) wideBridge(m, b.from, b.to, BRIDGE_HALF);
-  const zones = roomZones(slug);
-  const labels: RoomLabel[] = L.labels(island);
+  const zones = roomZones(slug, venues);
+  const labels: RoomLabel[] = [...L.labels(island), ...optional.flatMap((o) => o.labels(island))];
   for (const z of zones) {
     if (z.kind !== "room") continue;
     const c = toWorld(...centroid(z.area));

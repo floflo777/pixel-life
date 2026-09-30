@@ -26,6 +26,7 @@ const CSS = `
 .plh-sign{background:#eee;color:#111;border:2px solid #111;box-shadow:2px 2px 0 #111;padding:2px 6px 3px;font-size:10px;line-height:11px}
 .plh-sign i{font:10px/11px "Sometype Mono",monospace;font-style:normal;display:block;text-transform:lowercase}
 .plh-gate{pointer-events:auto;cursor:pointer;text-align:left}
+button.plh-sign{pointer-events:auto;cursor:pointer;text-align:left}
 .plh-well{pointer-events:auto;cursor:pointer;background:#eee;border:2px solid #111;border-radius:50%;box-shadow:2px 2px 0 #111;width:40px;height:40px;padding:0;display:grid;place-items:center}
 .plh-well canvas{width:24px;height:24px;image-rendering:pixelated}
 .plh-call{color:#eee;font-weight:700;font-size:14px;text-shadow:2px 0 #111,-2px 0 #111,0 2px #111,0 -2px #111,3px 3px 0 #111}

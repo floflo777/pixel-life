@@ -6,7 +6,7 @@ import { spritePixels } from "./impostors";
 import type { HubSession } from "@pl/realtime";
 import type { ClientSocket } from "@pl/realtime/client";
 import { createLocalHub, createLocalHubNet, hubNetFromClient, LocalSocket } from "./net";
-import { coveringSeed, roomLayout, roomZones } from "./rooms";
+import { coveringSeed, optionalVenues, roomLayout, roomZones } from "./rooms";
 import { islandCells } from "../world/island";
 
 const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
@@ -129,6 +129,20 @@ describe("room layouts", () => {
     expect(plazaVenue?.target).toBe("pixel-life");
     // The doormat sits in front of the hall, at the north rim of the plaza.
     expect(toWorld(...centroid(plazaVenue?.area ?? [])).z).toBeLessThan(-7);
+  });
+  it("build optional venue halls only for enabled venues; page doors always exist", () => {
+    const all = ROOMS.flatMap((slug) => roomZones(slug).map((z) => z.target));
+    for (const id of ["greenhouse", "daily-stone", "mend-board", "handheld", "bump-sumo", "pixel-putt"])
+      expect(all).toContain(id);
+    const none = ROOMS.flatMap((slug) => roomZones(slug, new Set()).map((z) => z.target));
+    for (const id of ["greenhouse", "daily-stone", "mend-board", "pixel-life", "seed-pack"]) expect(none).toContain(id);
+    for (const id of ["handheld", "bump-sumo", "pixel-putt"]) expect(none).not.toContain(id);
+    // The main island shows every game once they ship.
+    expect(optionalVenues("plaza")).toEqual(["handheld", "seed-pack", "bump-sumo", "pixel-putt"]);
+    expect(optionalVenues("pixel-arena")).toEqual(["bump-sumo"]);
+    expect(optionalVenues("sky-docks")).toEqual(["pixel-putt"]);
+    expect(roomZones("pixel-arena", new Set(["bump-sumo"])).map((z) => z.target)).toContain("bump-sumo");
+    expect(roomZones("sky-docks", new Set(["bump-sumo"])).map((z) => z.target)).not.toContain("pixel-putt");
   });
 });
 
