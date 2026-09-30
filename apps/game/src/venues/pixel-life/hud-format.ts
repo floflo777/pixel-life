@@ -2,7 +2,7 @@
  * HUD copy and number formatting (GDD §6.3, art bible §6). Pure, so every string the HUD shows is unit-tested.
  * UI rule: labels lowercase mono, numbers Silkscreen; the CSS handles the case of display text.
  */
-import { RUN_TICKS, SIM_HZ } from "@pl/shared";
+import { RUN_TICKS, SIM_HZ, SimTuning } from "@pl/shared";
 
 /** Blocks in the top timer bar (one per second). */
 export const TIMER_BLOCKS = 60;
@@ -57,9 +57,11 @@ export function chainLabel(tenths: number): string {
   return `×${t % 10 === 0 ? String(t / 10) : (t / 10).toFixed(1)}`;
 }
 
-/** Chain pips lit (10 pips from ×1.0 to ×2.0). */
+/** Chain pips lit: 10 pips spanning the sim's chain range (×1.0 → ×5.0 on SIM_VERSION 2), rounded to the nearest pip. */
 export function chainPips(tenths: number): number {
-  return Math.max(0, Math.min(10, Math.round(tenths) - 10));
+  const span = SimTuning.CHAIN_CAP - SimTuning.CHAIN_BASE;
+  const k = Math.round(((Math.round(tenths) - SimTuning.CHAIN_BASE) * 10) / span);
+  return Math.max(0, Math.min(10, k));
 }
 
 /** Callout tones: coral = loss, paper = points, lime = act now. */

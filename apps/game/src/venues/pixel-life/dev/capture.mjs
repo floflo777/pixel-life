@@ -1,6 +1,7 @@
 // Captures the Loose Pixels venue on the real sim with headless Chromium (SwiftShader). Time is driven by Playwright's
 // fake clock, so every still and GIF frame is taken at an exact game time (12 fps GIF = 83 ms of game per frame).
-// Usage: node apps/game/src/venues/pixel-life/dev/capture.mjs [--only=<name>] [--gif]
+// One browser, one page at a time (each closed after its capture) to keep the machine cool.
+// Usage: node apps/game/src/venues/pixel-life/dev/capture.mjs [--only=<name>[,<name>]] [--gif]
 // Output: apps/game/src/venues/pixel-life/dev/shots/*.png (+ run.gif when ffmpeg is available).
 import { execFileSync } from "node:child_process";
 import { mkdir, rm } from "node:fs/promises";
@@ -145,7 +146,8 @@ try {
   }
   if (gif) {
     // 7 s at 12 fps of a clumsy autopilot (bites, loose pixels, sweeps and pops), starting in the first wave.
-    const { page, errors } = await open("quality=high&seed=11&auto=free");
+    // Small viewport: software WebGL is expensive, and the GIF is scaled to 640 px anyway.
+    const { page, errors } = await open("quality=medium&seed=11&auto=free", { width: 640, height: 360 });
     await dbg(page, "autopilot", ["novice", 8]);
     await run(page, 21000);
     await mkdir(`${outDir}gif`, { recursive: true });
