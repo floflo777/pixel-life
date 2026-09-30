@@ -90,6 +90,11 @@ export interface HubSceneOptions {
   readonly decorate?: (room: RoomSlug, root: Object3D) => (() => void) | undefined;
   /** Wall clock for regrowth maths (default `Date.now`). */
   readonly now?: () => number;
+  /**
+   * Optional venue halls to build, by venue id (the shell passes its registry, so a door exists only for a venue that
+   * ships: GDD §11, no "coming soon" scaffolds). Core doors are always built. Default: every hall (dev page).
+   */
+  readonly venues?: readonly string[];
   /** Starting room (default plaza). */
   readonly room?: RoomSlug;
   readonly onEnterVenue?: (e: VenueEntry) => void;

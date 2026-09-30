@@ -185,6 +185,7 @@ export function createHubScene(
     [0, 0],
   );
   const doors = new DoorTracker();
+  const enabledVenues = opts.venues ? new Set(opts.venues) : undefined;
   const actors = new Map<string, Actor>();
   const rooms = new Map<RoomSlug, RoomView>();
   const mutedTokens = new Set<TokenIdStr>();
@@ -563,7 +564,7 @@ export function createHubScene(
     undecorate?.();
     undecorate = null;
     let v = rooms.get(slug);
-    if (!v) rooms.set(slug, (v = buildRoom(slug)));
+    if (!v) rooms.set(slug, (v = buildRoom(slug, enabledVenues)));
     undecorate = opts.decorate?.(slug, v.root) ?? null;
     view = v;
     room = slug;

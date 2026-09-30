@@ -26,7 +26,7 @@ export const ROOM_NAMES: Readonly<Record<RoomSlug, string>> = {
 /** Short subtitle under a room's gate sign. */
 export const ROOM_BLURB: Readonly<Record<RoomSlug, string>> = {
   plaza: "fountain · notice board",
-  "pixel-arena": "loose pixels · fling statue",
+  "pixel-arena": "fling games · statue",
   "seed-booth": "regrow · seeds",
   "sky-docks": "mend well",
   "daily-gate": "daily run · board",
@@ -35,7 +35,11 @@ export const ROOM_BLURB: Readonly<Record<RoomSlug, string>> = {
 /** Display names of venues (marquees, status lines). Unknown ids fall back to the id with dashes as spaces. */
 export function venueName(id: string): string {
   // D-14: the flagship venue id stays `pixel-life` on the wire; players read "Loose Pixels".
-  const known: Record<string, string> = { "pixel-life": "loose pixels", "seed-pack": "seed pack" };
+  const known: Record<string, string> = {
+    "pixel-life": "loose pixels",
+    "seed-pack": "seed pack",
+    handheld: "handheld arcade",
+  };
   return known[id] ?? id.replace(/-/g, " ");
 }
 
