@@ -3,7 +3,7 @@ import type { EconomyMode } from "@pl/shared";
 import { cx } from "./cx.js";
 
 /** Pill/badge colour. `now` (lime) is an urgent tag only: `4 loose · grab!`, `tap`, `● 6 playing · enter`. */
-export type Tone = "paper" | "ink" | "now" | "coral" | "gold" | "sun" | "lilac" | "pond";
+export type Tone = "paper" | "ink" | "now" | "coral" | "gold" | "sun" | "lilac" | "pond" | "meadow";
 
 /** A small lowercase mono tag with a 2 px hard shadow. */
 export function Pill({ tone = "paper", children, title }: { tone?: Tone; children: ReactNode; title?: string }) {

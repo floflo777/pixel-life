@@ -131,173 +131,11 @@ code {
   top: 8px;
 }
 
-/* ── Buttons (44 px targets; pressed = shadow 0 + translate, no transition) ── */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  min-height: 44px;
-  min-width: 44px;
-  padding: 8px 14px;
-  border: 2px solid var(--ink);
-  border-radius: 0;
-  background: var(--paper);
-  color: var(--ink);
-  font: 700 12px/1 var(--display);
-  text-decoration: none;
-  text-transform: uppercase;
-  cursor: pointer;
-  box-shadow: 2px 2px 0 var(--ink);
-  transition: none;
-  touch-action: manipulation;
-}
-.btn:active:not(:disabled) {
-  box-shadow: none;
-  transform: translate(2px, 2px);
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.btn-now {
-  background: var(--signal);
-}
-.btn-ink {
-  background: var(--ink);
-  color: var(--paper);
-  box-shadow:
-    2px 2px 0 var(--paper),
-    4px 4px 0 var(--ink);
-}
-.btn-quiet {
-  border-color: transparent;
-  box-shadow: none;
-  background: transparent;
-  text-decoration: underline;
-}
-.btn-big {
-  min-height: 60px;
-  padding: 14px 26px;
-  font-size: 20px;
-  box-shadow: 4px 4px 0 var(--ink);
-}
-
-/* ── Cards, tags, stats ── */
-.card {
-  background: var(--surface);
-  color: var(--on-surface);
-  border: 2px solid var(--on-surface);
-  box-shadow: var(--shadow);
-  padding: 16px;
-  margin: 0 0 16px;
-}
-.card-ink {
-  --surface: var(--ink);
-  --on-surface: var(--paper);
-}
-.card .btn {
-  border-color: var(--ink);
-}
-.card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-.tag {
-  display: inline-block;
-  border: 2px solid var(--ink);
-  box-shadow: 2px 2px 0 var(--ink);
-  padding: 1px 5px;
-  margin-left: 6px;
-  font: 700 10px/1.3 var(--display);
-  background: var(--paper);
-  color: var(--ink);
-  vertical-align: middle;
-  white-space: nowrap;
-}
-.tag-sim {
-  background: var(--ink);
-  color: var(--paper);
-  box-shadow: 2px 2px 0 var(--coral);
-}
-.tag-live,
-.tag-now {
-  background: var(--signal);
-}
-.tag-ink {
-  background: var(--ink);
-  color: var(--paper);
-}
-.tag-coral {
-  background: var(--coral);
-}
-.stat {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: baseline;
-  border-bottom: 2px dotted var(--dots);
-  padding: 4px 0;
-}
-.stat-label {
-  font-family: var(--mono);
-  font-size: 12px;
-}
-.loading {
-  padding: 24px 16px;
-}
-.spinner {
-  display: inline-block;
-  width: 1ch;
-}
-.error-box {
-  border: 2px solid var(--ink);
-  background: var(--paper);
-  box-shadow: 2px 2px 0 var(--coral);
-  padding: 12px;
-  margin: 12px 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
-}
-.error-box p {
-  margin: 0;
-}
-
-/* ── Friend sprite (2D card look) ── */
-.friend-sprite {
-  display: block;
-  flex: none;
-  image-rendering: pixelated;
-}
-.friend-sprite .px-ink {
-  fill: var(--body);
-}
-.friend-sprite .px-gold {
-  fill: var(--gold);
-}
-.friend-sprite .px-stitch {
-  fill: var(--body);
-  stroke: var(--coral);
-  stroke-width: 0.18;
-}
-.friend-sprite .px-scar {
-  fill: var(--paper);
-  stroke: var(--coral);
-  stroke-width: 0.16;
-  stroke-dasharray: 0.16 0.12;
-}
-.friend-sprite .px-toggle {
-  cursor: pointer;
-}
-.friend-sprite .px-selected {
-  fill: var(--signal);
-  stroke: var(--ink);
+/* Buttons, cards, pills, states and portraits come from the one UI kit (src/ui/ui.css, `pl-` classes). */
+.page > .pl-card + .pl-card,
+.page > .pl-card + .pl-state,
+.page > .pl-state + .pl-card {
+  margin-top: 16px;
 }
 
 /* ── HUD ── */
@@ -342,7 +180,7 @@ code {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.hud-friend-name .tag {
+.hud-friend-name .pl-badge {
   font-size: 8px;
   margin-left: 4px;
 }
@@ -458,7 +296,7 @@ code {
 .notice p {
   margin: 0;
 }
-.notice .btn {
+.notice .pl-btn {
   color: var(--paper);
   min-height: 36px;
 }
@@ -900,41 +738,6 @@ legend {
 }
 .inbox p {
   margin: 0 0 4px;
-}
-
-/* ── Toasts ── */
-.toasts {
-  position: fixed;
-  bottom: max(12px, env(safe-area-inset-bottom));
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 60;
-  display: grid;
-  gap: 6px;
-  width: min(420px, calc(100vw - 24px));
-  pointer-events: none;
-}
-.toast {
-  margin: 0;
-  padding: 8px 12px;
-  background: var(--paper);
-  border: 2px solid var(--ink);
-  box-shadow: var(--shadow-sm);
-  animation: card-in 100ms steps(2, end);
-}
-.toast-good {
-  box-shadow: 2px 2px 0 var(--meadow);
-}
-.toast-bad {
-  box-shadow: 2px 2px 0 var(--coral);
-}
-@keyframes card-in {
-  from {
-    opacity: 0.5;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 /* Reduced motion: no animations at all (the stage handles its own). */

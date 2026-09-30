@@ -11,7 +11,7 @@ import { useServices } from "../app/services.js";
 import { errorMessage } from "../api/client.js";
 import { shortAddress } from "../lib/format.js";
 import { useStore } from "../lib/store.js";
-import { Button, Card, ErrorBox, LinkButton, Loading } from "../ui/kit.js";
+import { Button, Card, ErrorState, LinkButton, Loading } from "../ui/index.js";
 import { ROBINHOOD_CHAIN_ID, type OwnerFlow, type OwnerStep } from "./owner-flow.js";
 import { SIWE_STATEMENT } from "./siwe.js";
 
@@ -76,7 +76,7 @@ function FlowView({ flow }: { flow: OwnerFlow }) {
   const busy = f.step === "checking" || f.step === "signing" || f.step === "binding" ? f.tokenId : null;
 
   return (
-    <Card title="bring your own Friend" labelledBy="connect-title">
+    <Card title="bring your own Friend">
       <ol className="steps mono">
         {STEPS.map((label, i) => (
           <li key={label} aria-current={i === at ? "step" : undefined} className={i < at ? "done" : ""}>
@@ -109,7 +109,7 @@ function FlowView({ flow }: { flow: OwnerFlow }) {
                 ))}
               </div>
             ) : (
-              <Button variant="now" big onClick={() => void flow.connect()} data-testid="connect-wallet">
+              <Button variant="now" size="big" onClick={() => void flow.connect()} data-testid="connect-wallet">
                 connect wallet
               </Button>
             )}
@@ -154,7 +154,7 @@ function FlowView({ flow }: { flow: OwnerFlow }) {
           <div data-testid="bound">
             <p className="display">#{identity.view.appearance.tokenId} is yours. It rains in, scars and all ✓</p>
             <div className="row">
-              <LinkButton to="/play" variant="now" big>
+              <LinkButton to="/play" variant="now" size="big">
                 ▶ play
               </LinkButton>
               <LinkButton to="/sky">enter the sky</LinkButton>
@@ -162,7 +162,7 @@ function FlowView({ flow }: { flow: OwnerFlow }) {
             </div>
           </div>
         )}
-        {f.step === "error" && <ErrorBox message={f.message} onRetry={() => void flow.retry()} />}
+        {f.step === "error" && <ErrorState message={f.message} onRetry={() => void flow.retry()} />}
       </div>
 
       {(f.step === "picking" ||
@@ -191,7 +191,7 @@ export default function ConnectScreen(_props: PageProps) {
   return (
     <div className="page page-connect">
       {error ? (
-        <ErrorBox message={`The wallet module failed to load: ${errorMessage(error)}`} />
+        <ErrorState message={`The wallet module failed to load: ${errorMessage(error)}`} />
       ) : flow ? (
         <FlowView flow={flow} />
       ) : (

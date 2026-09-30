@@ -2,7 +2,7 @@
  * About / How to play: the one-sentence rule (GDD §1.2), the controls (§2.2), what happens to your Friend between runs
  * (§5), and the Sky hub (§11, D-09). Static copy; numbers come from `@pl/shared` so they never drift.
  */
-import { ECON, regrowthMsPerPx, ROOMS, type RoomSlug } from "@pl/shared";
+import { BITS, ECON, regrowthMsPerPx, ROOMS, type RoomSlug } from "@pl/shared";
 import { Button, Card, formatRf, Pill } from "../ui/index.js";
 
 /** The rule, verbatim: it appears on the landing, loading screen, share card and README. */
@@ -43,7 +43,7 @@ const CONTROLS: readonly { input: string; how: string }[] = [
 export function AboutPage({ onPlay, onOpenEconomy }: AboutPageProps) {
   const pxPerDay = Math.floor((24 * 3600_000) / regrowthMsPerPx(0));
   return (
-    <main className="pl-root pl-page" aria-label="How to play">
+    <div className="pl-page">
       <Card variant="hero" aria-label="the rule">
         <h1 className="pl-display pl-h1" style={{ marginBottom: 12 }}>
           pixel life
@@ -136,6 +136,22 @@ export function AboutPage({ onPlay, onOpenEconomy }: AboutPageProps) {
         </Card>
       </div>
 
+      <Card title="your isle, stamps & belts" level={2}>
+        <ul className="pl-list">
+          <li>
+            <strong>Bits</strong> come from playing (capped at {BITS.dailyHardCap} a day). They buy decor, hats and
+            island plots in the Seed Catalogue and never convert to RF.
+          </li>
+          <li>
+            <strong>Your isle</strong> floats in the Sky: place what you buy, choose a hat, and open it for visits.
+          </li>
+          <li>
+            <strong>Stamps</strong> (24 of them) mark what you did; <strong>Fling Belts</strong> are fixed-seed trials
+            from white to Gulp Master. Both are status only: they unlock flex items, never Bits or RF.
+          </li>
+        </ul>
+      </Card>
+
       <Card title="no wallet? play on loan" level={2}>
         <p style={{ margin: 0 }}>
           Guests play a real Friend on loan. Its scars stay on your device only. Bring your own Friend to make scars
@@ -143,6 +159,6 @@ export function AboutPage({ onPlay, onOpenEconomy }: AboutPageProps) {
           mode is switched on.
         </p>
       </Card>
-    </main>
+    </div>
   );
 }

@@ -11,7 +11,7 @@ import { useServices } from "../app/services.js";
 import { formatBps } from "../lib/format.js";
 import { navigate } from "../lib/router.js";
 import { useStore } from "../lib/store.js";
-import { Button, Card, LinkButton, Loading, SimTag } from "../ui/kit.js";
+import { Button, Card, LinkButton, Loading, SimulatedBadge } from "../ui/index.js";
 import { playHref } from "../hub/doors.js";
 import { NATIVE_VENUES, SDK_VENUES } from "./registry.js";
 
@@ -24,7 +24,7 @@ export function SeedPackOdds() {
   return (
     <table className="odds">
       <caption className="mono">
-        Seed Pack · {rf(SEED_PACK.price)} RF <SimTag />
+        Seed Pack · {rf(SEED_PACK.price)} RF <SimulatedBadge />
       </caption>
       <thead>
         <tr>
@@ -70,7 +70,7 @@ export function SeedPackDemo({ random = roll }: { random?: () => number }) {
   return (
     <div className="seed-demo" data-testid="seed-demo">
       <p className="mono">
-        demo pull · nothing is bought or kept <SimTag />
+        demo pull · nothing is bought or kept <SimulatedBadge />
       </p>
       <Button
         onClick={() => {

@@ -5,7 +5,7 @@
 import { lazy, Suspense } from "react";
 import { useServices } from "../app/services.js";
 import { useStore } from "../lib/store.js";
-import { Button } from "../ui/kit.js";
+import { Button, ToastRegion } from "../ui/index.js";
 
 const GameMenu = lazy(() => import("@rarefriends/friendsdk/frame").then((m) => ({ default: m.GameMenu })));
 
@@ -43,13 +43,5 @@ export function ConfirmHost() {
 export function Toasts() {
   const { toasts } = useServices();
   const list = useStore(toasts);
-  return (
-    <div className="toasts" role="status" aria-live="polite">
-      {list.map((t) => (
-        <p key={t.id} className={`toast toast-${t.tone}`}>
-          {t.text}
-        </p>
-      ))}
-    </div>
-  );
+  return <ToastRegion toasts={list} onDismiss={(id) => toasts.set((t) => t.filter((x) => x.id !== id))} />;
 }

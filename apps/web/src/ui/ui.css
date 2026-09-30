@@ -196,6 +196,7 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -328,6 +329,11 @@
 }
 .pl-tone-lilac {
   background: var(--pl-lilac);
+  color: var(--pl-ink);
+  border-color: var(--pl-ink);
+}
+.pl-tone-meadow {
+  background: var(--pl-meadow);
   color: var(--pl-ink);
   border-color: var(--pl-ink);
 }
@@ -716,4 +722,135 @@
 :root[data-reduced-motion="true"] .pl-skeleton,
 :root[data-reduced-motion="true"] .pl-halo-anim {
   animation: none !important;
+}
+
+/* ── Inline loading line and stat rows (shell screens) ────────────────────────────────────────── */
+.pl-loading {
+  padding: 24px 16px;
+  margin: 0;
+}
+.pl-spinner {
+  display: inline-block;
+  width: 1ch;
+}
+.pl-stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  border-bottom: 2px dotted var(--pl-grid-dot);
+  padding: 4px 0;
+}
+.pl-stat-value {
+  text-align: right;
+}
+
+/* ── Form fields ──────────────────────────────────────────────────────────────────────────────── */
+.pl-input {
+  min-height: 44px;
+  width: 100%;
+  max-width: 320px;
+  padding: 8px 10px;
+  border: var(--pl-border);
+  border-radius: 0;
+  background: var(--pl-surface);
+  color: var(--pl-on-surface);
+  font: 15px var(--pl-font-mono);
+}
+.pl-input:focus-visible {
+  outline: 2px solid var(--pl-line);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--pl-signal);
+}
+.pl-input[aria-invalid="true"] {
+  border-color: var(--pl-coral-dark);
+}
+
+/* ── Stamp book and belt ladder ───────────────────────────────────────────────────────────────── */
+.pl-stamps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.pl-stamp {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: var(--pl-border);
+  background: var(--pl-surface);
+}
+.pl-stamp--locked {
+  border-style: dashed;
+  color: var(--pl-sub);
+}
+.pl-stamp-seal {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: var(--pl-border);
+  font-family: var(--pl-font-display);
+  font-size: 16px;
+  color: var(--pl-ink);
+}
+.pl-belts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.pl-belt {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.pl-belt-band {
+  height: 14px;
+  border: var(--pl-border);
+}
+.pl-belt[aria-current="step"] .pl-belt-band {
+  box-shadow: 0 0 0 3px var(--pl-signal);
+}
+.pl-belt--todo {
+  color: var(--pl-sub);
+}
+.pl-belt--todo .pl-belt-band {
+  opacity: 0.35;
+}
+
+/* ── Home isle ────────────────────────────────────────────────────────────────────────────────── */
+.pl-isle {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  max-height: 70vh;
+  border: var(--pl-border);
+  background: #c5deea;
+  overflow: hidden;
+  touch-action: none;
+}
+.pl-isle .live-stage,
+.pl-isle canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.pl-shelf {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+/* Grid and flex children may shrink below their content, so wide tables scroll inside their wrap at 360 px. */
+.pl-page > *,
+.pl-grid-2 > *,
+.pl-cards > *,
+.pl-card {
+  min-width: 0;
 }

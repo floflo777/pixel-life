@@ -1,10 +1,9 @@
 /**
  * The route registry (GDD §6.1): the one table the shell routes from. Every screen is loaded lazily by path.
  *
- * Ownership: `shell` screens live next to the shell code (landing, hub, venues, identity, settings, inbox);
- * `pages` screens live in `src/pages/<Page>.tsx` (owned by the pages/UI task) and are discovered with
- * `import.meta.glob`: a page file that does not exist yet renders the "coming soon" placeholder instead of breaking the
- * build. Page modules default-export a component taking {@link PageProps}.
+ * Ownership: `shell` screens live next to the shell code (landing, hub, venues, identity, settings); `pages` screens
+ * are the routed containers in `src/pages/routes/`, which wire the prop-driven page views to the API. Every screen
+ * module default-exports a component taking {@link PageProps}.
  */
 import type { ComponentType } from "react";
 import { buildPath, matchPath } from "../lib/router.js";
@@ -28,10 +27,8 @@ export interface RouteDef {
   /** Document title (followed by "· Loose Pixels"). */
   title: string;
   owner: "shell" | "pages";
-  /** `pages` routes: the file name in `src/pages` (without `.tsx`). */
-  page?: string;
-  /** `shell` routes: the module loader. */
-  load?: () => Promise<PageModule>;
+  /** The module loader. */
+  load: () => Promise<PageModule>;
   /** Shown in the shell navigation. */
   nav?: { label: string; order: number };
   /** Informational: the screen is useful only with an owned Friend (pages gate themselves with a CTA). */
@@ -89,60 +86,122 @@ export const ROUTES: readonly RouteDef[] = [
     owner: "shell",
     load: () => import("../settings/SettingsScreen.js"),
   },
-  { name: "inbox", path: "/inbox", title: "Inbox", owner: "shell", load: () => import("../shell/InboxScreen.js") },
-  { name: "friend", path: "/f/:tokenId", title: "Friend", owner: "pages", page: "FriendPage" },
+  {
+    name: "inbox",
+    path: "/inbox",
+    title: "Inbox",
+    owner: "pages",
+    load: () => import("../pages/routes/InboxRoute.js"),
+    ownerOnly: true,
+  },
+  {
+    name: "friend",
+    path: "/f/:tokenId",
+    title: "Friend",
+    owner: "pages",
+    load: () => import("../pages/routes/FriendRoute.js"),
+  },
+  {
+    name: "home",
+    path: "/home",
+    title: "My isle",
+    owner: "pages",
+    load: () => import("../pages/routes/HomeRoute.js"),
+    ownerOnly: true,
+    nav: { label: "my isle", order: 2 },
+  },
+  {
+    name: "isle",
+    path: "/home/:tokenId",
+    title: "Isle",
+    owner: "pages",
+    load: () => import("../pages/routes/HomeRoute.js"),
+  },
+  {
+    name: "stamps",
+    path: "/stamps",
+    title: "Stamp book",
+    owner: "pages",
+    load: () => import("../pages/routes/StampsRoute.js"),
+    ownerOnly: true,
+    nav: { label: "stamps & belts", order: 3 },
+  },
+  {
+    name: "stampsOf",
+    path: "/stamps/:tokenId",
+    title: "Stamp book",
+    owner: "pages",
+    load: () => import("../pages/routes/StampsRoute.js"),
+  },
   {
     name: "shop",
     path: "/shop",
     title: "Greenhouse",
     owner: "pages",
-    page: "GreenhousePage",
-    nav: { label: "greenhouse", order: 2 },
+    load: () => import("../pages/routes/GreenhouseRoute.js"),
+    nav: { label: "greenhouse", order: 4 },
   },
-  { name: "regrow", path: "/regrow", title: "Regrow", owner: "pages", page: "RegrowPage", ownerOnly: true },
+  {
+    name: "regrow",
+    path: "/regrow",
+    title: "Regrow",
+    owner: "pages",
+    load: () => import("../pages/routes/RegrowRoute.js"),
+    ownerOnly: true,
+  },
   {
     name: "mend",
     path: "/mend",
     title: "Mend board",
     owner: "pages",
-    page: "MendBoardPage",
-    nav: { label: "mend", order: 3 },
+    load: () => import("../pages/routes/MendBoardRoute.js"),
+    nav: { label: "mend", order: 5 },
+  },
+  {
+    name: "mendFriend",
+    path: "/mend/:tokenId",
+    title: "Mend",
+    owner: "pages",
+    load: () => import("../pages/routes/MendRoute.js"),
+    ownerOnly: true,
   },
   {
     name: "board",
     path: "/board",
     title: "Daily board",
     owner: "pages",
-    page: "DailyBoardPage",
-    nav: { label: "daily", order: 4 },
+    load: () => import("../pages/routes/DailyBoardRoute.js"),
+    nav: { label: "daily", order: 6 },
   },
-  { name: "market", path: "/market", title: "Market", owner: "pages", page: "MarketPage" },
+  {
+    name: "market",
+    path: "/market",
+    title: "Gold market",
+    owner: "pages",
+    load: () => import("../pages/routes/MarketRoute.js"),
+    nav: { label: "gold market", order: 7 },
+  },
   {
     name: "economy",
     path: "/economy",
     title: "Economy & odds",
     owner: "pages",
-    page: "EconomyPage",
-    nav: { label: "economy", order: 5 },
+    load: () => import("../pages/routes/EconomyRoute.js"),
+    nav: { label: "economy", order: 8 },
   },
   {
     name: "about",
     path: "/about",
     title: "How to play",
     owner: "pages",
-    page: "AboutPage",
-    nav: { label: "about", order: 6 },
+    load: () => import("../pages/routes/AboutRoute.js"),
+    nav: { label: "about", order: 9 },
   },
 ];
 
-/** Page modules present in `src/pages` (resolved at build time). */
-const PAGE_FILES = import.meta.glob<PageModule>("../pages/*.tsx");
-
-/** The loader for a route, or null when its page file does not exist yet. */
-export function loaderOf(r: RouteDef): (() => Promise<PageModule>) | null {
-  if (r.load) return r.load;
-  if (r.page) return PAGE_FILES[`../pages/${r.page}.tsx`] ?? null;
-  return null;
+/** The loader of a route. */
+export function loaderOf(r: RouteDef): () => Promise<PageModule> {
+  return r.load;
 }
 
 /** A matched route. */

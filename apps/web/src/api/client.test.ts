@@ -90,4 +90,70 @@ describe("api client", () => {
     const e = (await slow.daily().catch((x: unknown) => x)) as ApiRequestError;
     expect(e.code).toBe("timeout");
   });
+
+  it("calls the market and meta endpoints with their bodies", async () => {
+    const m = mockFetch(() => json({}));
+    const api = createApi({ fetch: m.fetch });
+    await api.marketBook(10);
+    await api.marketMine();
+    await api.marketList(52_500_000);
+    await api.marketList(52_500_000, 4);
+    await api.marketCancel(4);
+    await api.marketBuy(4, 50_000_000);
+    await api.metaMe();
+    await api.home("344030");
+    await api.saveHome({ layout: { v: 1, items: [] }, hat: null, open: true });
+    await api.buyItem("rock");
+    await api.buyPlot();
+    await api.visitHome("7");
+    expect(m.calls.map((c) => `${c.init.method} ${c.url} ${String(c.init.body ?? "")}`)).toEqual([
+      "GET /api/market/book?limit=10 ",
+      "GET /api/market/mine ",
+      'POST /api/market/list {"priceMicro":52500000}',
+      'POST /api/market/list {"priceMicro":52500000,"leafId":4}',
+      'POST /api/market/cancel {"leafId":4}',
+      'POST /api/market/buy {"leafId":4,"expectedPriceMicro":50000000}',
+      "GET /api/meta/me ",
+      "GET /api/home/344030 ",
+      'PUT /api/home {"layout":{"v":1,"items":[]},"hat":null,"open":true}',
+      'POST /api/meta/buy {"itemId":"rock"}',
+      "POST /api/meta/plot ",
+      "POST /api/home/7/visit ",
+    ]);
+  });
+
+  it("keeps the market's reason and prefers the server's sentence for refusals", async () => {
+    const api = createApi({
+      fetch: mockFetch(() =>
+        json({ error: "quote_expired", message: "The ask moved to 60 RF.", marketError: "price_changed" }, 409),
+      ).fetch,
+    });
+    const err = (await api.marketBuy(1, 50_000_000).catch((e: unknown) => e)) as ApiRequestError;
+    expect(err.marketError).toBe("price_changed");
+    expect(errorMessage(err)).toBe("The ask moved to 60 RF.");
+    const bits = createApi({
+      fetch: mockFetch(() => json({ error: "insufficient_funds", message: "Not enough Bits." }, 402)).fetch,
+    });
+    expect(errorMessage(await bits.buyItem("rock").catch((e: unknown) => e))).toBe("Not enough Bits.");
+    // Transport and session problems keep the fixed copy whatever the body says.
+    const auth = createApi({ fetch: mockFetch(() => json({ error: "unauthorized", message: "jwt" }, 401)).fetch });
+    expect(errorMessage(await auth.metaMe().catch((e: unknown) => e))).toMatch(/session expired/);
+    // No sentence from the server: fall back to the fixed copy.
+    const bare = createApi({ fetch: mockFetch(() => json({ error: "quote_expired" }, 409)).fetch });
+    expect(errorMessage(await bare.marketBuy(1, 1).catch((e: unknown) => e))).toMatch(/price changed/);
+  });
+
+  it("reports every /api/me answer to onMe (server flags, Bits)", async () => {
+    const onMe = vi.fn();
+    const me = {
+      identity: { kind: "anon" },
+      friend: null,
+      balanceMicro: null,
+      unread: 0,
+      economy: "sim",
+      guestMode: false,
+    };
+    await createApi({ fetch: mockFetch(() => json(me)).fetch, onMe }).me();
+    expect(onMe).toHaveBeenCalledWith(me);
+  });
 });

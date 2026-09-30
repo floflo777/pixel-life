@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import { type HTMLAttributes, type ReactNode, useId } from "react";
 import { cx } from "./cx.js";
 
 /** Props of {@link Card}. */
@@ -14,7 +14,10 @@ export interface CardProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
   as?: "section" | "article" | "div" | "aside" | "li";
 }
 
-/** A paper card: 2 px ink border, hard 4 px offset shadow, radius 0 (art bible §6). */
+/**
+ * A paper card: 2 px ink border, hard 4 px offset shadow, radius 0 (art bible §6). A titled card is a region named by
+ * its heading unless `aria-label` / `aria-labelledby` says otherwise.
+ */
 export function Card({
   title,
   level = 2,
@@ -26,11 +29,22 @@ export function Card({
   ...rest
 }: CardProps) {
   const H = level === 2 ? "h2" : "h3";
+  const headId = useId();
+  const named = rest["aria-label"] !== undefined || rest["aria-labelledby"] !== undefined;
+  const labelledBy = title !== undefined && !named && Tag !== "li" ? headId : undefined;
   return (
-    <Tag className={cx("pl-card", variant !== "paper" && `pl-card--${variant}`, className)} {...rest}>
+    <Tag
+      className={cx("pl-card", variant !== "paper" && `pl-card--${variant}`, className)}
+      aria-labelledby={labelledBy}
+      {...rest}
+    >
       {(title !== undefined || actions !== undefined) && (
         <header className="pl-card-head">
-          {title !== undefined && <H className={cx("pl-display", level === 2 ? "pl-h2" : "pl-h3")}>{title}</H>}
+          {title !== undefined && (
+            <H id={headId} className={cx("pl-display", level === 2 ? "pl-h2" : "pl-h3")}>
+              {title}
+            </H>
+          )}
           {actions}
         </header>
       )}

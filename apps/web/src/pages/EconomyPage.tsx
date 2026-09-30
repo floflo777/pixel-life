@@ -14,6 +14,7 @@ import {
   RF_DECOR_TIERS_MICRO,
 } from "@pl/shared";
 import type { ReactNode } from "react";
+import { RfFlowExplainer, WhyRealEconomy } from "../onboarding/index.js";
 import {
   Badge,
   Card,
@@ -127,7 +128,7 @@ export function EconomyPage({ mode, stats, onRetryStats, now: fixedNow }: Econom
   const maxChance = Math.max(...seed.rows.map((r) => r.chanceBps));
 
   return (
-    <main className="pl-root pl-page" aria-label="Economy and odds">
+    <div className="pl-page">
       <header className="pl-page-head">
         <h1 className="pl-display pl-h1">economy & odds</h1>
         <SimulatedBadge mode={mode} />
@@ -149,6 +150,9 @@ export function EconomyPage({ mode, stats, onRetryStats, now: fixedNow }: Econom
           )}
         </p>
       </Card>
+
+      <WhyRealEconomy mode={mode} />
+      <RfFlowExplainer mode={mode} />
 
       <Card title="every price" aria-label="every price">
         <div className="pl-table-wrap">
@@ -372,6 +376,6 @@ export function EconomyPage({ mode, stats, onRetryStats, now: fixedNow }: Econom
           </RemoteView>
         </Card>
       )}
-    </main>
+    </div>
   );
 }

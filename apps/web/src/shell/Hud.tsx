@@ -5,14 +5,14 @@
  */
 import { effectiveLost, frontMask, type FriendView, nextRegrowthAt, popcount } from "@pl/shared";
 import { useState } from "react";
+import { useBits } from "../app/hooks.js";
 import { ROUTES } from "../app/routes.js";
 import { useServices } from "../app/services.js";
 import { formatClock, formatRf } from "../lib/format.js";
 import { Link } from "../lib/router.js";
 import { useStore } from "../lib/store.js";
 import { useNow } from "../lib/use-async.js";
-import { FriendSprite } from "../ui/FriendSprite.js";
-import { SimTag } from "../ui/kit.js";
+import { Badge, FriendPortrait, SimulatedBadge } from "../ui/index.js";
 
 /** Live pixel stats of a Friend at `now` (regrowth applied). */
 export function friendStats(view: FriendView, now: number) {
@@ -34,11 +34,11 @@ function FriendCard({ view, label }: { view: FriendView; label: string }) {
       data-testid="hud-friend"
       aria-label={`${label}: ${st.present} of ${st.total} pixels${st.nextInMs === null ? "" : `, next pixel heals in ${formatClock(st.nextInMs)}`}`}
     >
-      <FriendSprite view={view} lost={st.lost} scale={2} label="" />
+      <FriendPortrait view={view} lost={st.lost} scale={2} label="" halo={false} showNextHeal={false} />
       <span className="hud-friend-text">
         <span className="hud-friend-name">
           {label}
-          {view.loaned && <span className="tag tag-paper">on loan</span>}
+          {view.loaned && <Badge>on loan</Badge>}
         </span>
         <span className="mono hud-friend-px">
           <b className="num">
@@ -56,10 +56,8 @@ export function Hud({ current }: { current: string | null }) {
   const s = useServices();
   const { identity } = useStore(s.identity.store);
   const settings = useStore(s.settings);
-  useStore(s.progress.store);
+  const bits = useBits();
   const [menu, setMenu] = useState(false);
-  const player = identity.mode === "owner" ? identity.view.appearance.tokenId : "guest";
-  const bits = s.progress.get(player).bits;
   const nav = ROUTES.filter((r) => r.nav).sort((a, b) => (a.nav?.order ?? 0) - (b.nav?.order ?? 0));
 
   return (
@@ -75,13 +73,22 @@ export function Hud({ current }: { current: string | null }) {
         {identity.mode === "owner" && identity.balanceMicro !== null && (
           <span className="hud-rf" data-testid="hud-rf">
             <span className="num">{formatRf(identity.balanceMicro, 1)}</span>
-            <SimTag live={identity.economy === "live"} />
+            <SimulatedBadge mode={identity.economy} />
           </span>
         )}
         {identity.mode !== "none" && (
-          <span className="hud-bits mono" title="Bits: earned by playing, never converts to RF (this device)">
-            <b className="num">{bits}</b> bits
-          </span>
+          <Link
+            to="/shop"
+            className="hud-bits mono"
+            data-testid="hud-bits"
+            title={
+              bits.source === "server"
+                ? "Bits: earned by playing, spent in the Seed Catalogue, never converts to RF"
+                : "Bits on this device (guest): bring your own Friend to keep them on the server"
+            }
+          >
+            <b className="num">{bits.bits ?? "…"}</b> bits{bits.source === "device" ? "*" : ""}
+          </Link>
         )}
         {identity.mode === "owner" && (
           <Link to="/inbox" className="hud-icon" aria-label={`Inbox, ${identity.unread} unread`}>

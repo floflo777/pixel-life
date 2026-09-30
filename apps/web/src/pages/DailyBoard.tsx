@@ -80,7 +80,7 @@ export function DailyBoard({
 }: DailyBoardProps) {
   const now = useNow(1000, fixedNow);
   return (
-    <main className="pl-root pl-page" aria-label="Daily board">
+    <div className="pl-page">
       <header className="pl-page-head">
         <h1 className="pl-display pl-h1">daily stone</h1>
         {onPlay && (
@@ -159,6 +159,6 @@ export function DailyBoard({
           }
         </RemoteView>
       </Tabs>
-    </main>
+    </div>
   );
 }

@@ -9,6 +9,7 @@ import { createProgressBook, type ProgressBook } from "../meta/progress.js";
 import { createShellAudio, type ShellAudio } from "../settings/audio.js";
 import { createSettings, type Settings } from "../settings/settings.js";
 import { createStore, type Store } from "../lib/store.js";
+import { createMetaBook, type MetaBook } from "./meta.js";
 
 /** A transient message in the toast area (`role="status"`). */
 export interface Toast {
@@ -28,6 +29,12 @@ export interface Confirmation {
   resolve(ok: boolean): void;
 }
 
+/** Server switches read from `GET /api/me`. */
+export interface ServerFlags {
+  /** False when the server's guest kill switch is on (D-15): no "play as guest" path. */
+  guestMode: boolean;
+}
+
 /** Everything the shell shares. */
 export interface Services {
   api: Api;
@@ -35,6 +42,9 @@ export interface Services {
   settings: Store<Settings>;
   audio: ShellAudio;
   progress: ProgressBook;
+  /** The owner's server-side Bits, isle, stamps and belt (`GET /api/meta/me`). */
+  meta: MetaBook;
+  flags: Store<ServerFlags>;
   toasts: Store<readonly Toast[]>;
   confirmations: Store<Confirmation | null>;
   toast(text: string, tone?: Toast["tone"]): void;
@@ -56,13 +66,23 @@ export function createServices(): Services {
   };
   // `identity` is created after `api`, which only needs it lazily in the callbacks.
   let identity: IdentityController | null = null;
+  let meta: MetaBook | null = null;
+  const flags = createStore<ServerFlags>({ guestMode: true });
   const api = createApi({
     onNotOwner: () => identity?.dropOwner("The chain says this wallet no longer owns that Friend. Pick again."),
+    onMe: (me) => {
+      const guestMode = me.guestMode ?? true;
+      if (flags.get().guestMode !== guestMode) flags.set({ guestMode });
+      if (me.friend && me.bits !== undefined) meta?.applyBits(me.friend.appearance.tokenId, me.bits);
+    },
   });
   identity = createIdentity();
+  meta = createMetaBook(api, identity);
   return {
     api,
     identity,
+    meta,
+    flags,
     settings,
     audio: createShellAudio(settings),
     progress: createProgressBook(),

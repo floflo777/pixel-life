@@ -6,13 +6,14 @@ import { Component, type ErrorInfo, lazy, type ReactNode, Suspense, useEffect, u
 import { type PageModule, type RouteDef, loaderOf, resolveRoute } from "../app/routes.js";
 import { useServices } from "../app/services.js";
 import { syncMe } from "../identity/bootstrap.js";
-import { useLocation } from "../lib/router.js";
+import { navigate, useLocation } from "../lib/router.js";
+import { FirstVisit } from "../onboarding/index.js";
 import { useStore } from "../lib/store.js";
 import { reducedMotionOf } from "../settings/settings.js";
-import { Button, ErrorBox, Loading } from "../ui/kit.js";
+import { Button, ErrorState, Loading } from "../ui/index.js";
 import { Hud } from "./Hud.js";
 import { ConfirmHost, Toasts } from "./overlays.js";
-import { NotFound, PagePending } from "./placeholders.js";
+import { NotFound } from "./placeholders.js";
 
 /** Catches a crashed screen (or a failed chunk download) and offers a retry without reloading the shell. */
 class ScreenBoundary extends Component<{ children: ReactNode; resetKey: string }, { error: unknown }> {
@@ -30,7 +31,7 @@ class ScreenBoundary extends Component<{ children: ReactNode; resetKey: string }
     if (this.state.error)
       return (
         <div className="page">
-          <ErrorBox
+          <ErrorState
             message="This screen failed to load. Check your connection and retry."
             onRetry={() => this.setState({ error: null })}
           />
@@ -45,7 +46,6 @@ function screenOf(r: RouteDef) {
   let c = lazyCache.get(r);
   if (!c) {
     const load = loaderOf(r);
-    if (!load) return null;
     // A failed chunk load is not cached, so "retry" in the boundary downloads it again.
     c = lazy(() =>
       load().catch((e: unknown) => {
@@ -114,19 +114,22 @@ export function App() {
       </a>
       <Hud current={match?.route.name ?? null} />
       <Notice />
-      <main id="main" className={bleed ? "main main-bleed" : "main"} tabIndex={-1}>
+      <main id="main" className={bleed ? "pl-root main main-bleed" : "pl-root main"} tabIndex={-1}>
         <ScreenBoundary resetKey={loc.pathname}>
           <Suspense fallback={<Loading label="loading" />}>
-            {!match ? (
+            {!match || !Screen ? (
               <NotFound path={loc.pathname} />
-            ) : Screen ? (
-              <Screen params={match.params} search={loc.search} />
             ) : (
-              <PagePending route={match.route} />
+              <Screen params={match.params} search={loc.search} />
             )}
           </Suspense>
         </ScreenBoundary>
       </main>
+      <FirstVisit
+        onPlay={() => navigate("/play")}
+        you={identity.mode === "none" ? null : identity.view}
+        mode={identity.mode === "owner" ? identity.economy : "sim"}
+      />
       <ConfirmHost />
       <Toasts />
     </>

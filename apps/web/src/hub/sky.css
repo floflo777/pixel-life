@@ -34,7 +34,7 @@
 .sky-hud > * {
   pointer-events: auto;
 }
-.sky-hud > .btn-big {
+.sky-hud > .pl-btn--big {
   order: 2;
 }
 
@@ -64,7 +64,7 @@
   box-shadow: var(--shadow-sm);
   padding: 6px;
 }
-.sky-chat .btn {
+.sky-chat .pl-btn {
   min-height: 44px;
   text-transform: lowercase;
 }
@@ -94,7 +94,7 @@
   flex-wrap: wrap;
   gap: 8px;
 }
-.sky-card-actions .btn {
+.sky-card-actions .pl-btn {
   min-height: 44px;
 }
 
@@ -114,7 +114,7 @@
 }
 
 @media (max-width: 420px) {
-  .sky-hud > .btn-big {
+  .sky-hud > .pl-btn--big {
     flex: 1 0 100%;
     text-align: center;
   }

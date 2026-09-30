@@ -8,8 +8,7 @@ import { createSignal } from "@pl/venue-kit";
 import { useEffect, useMemo, useState } from "react";
 import { useServices } from "../app/services.js";
 import { LiveStage } from "../stage/LiveStage.js";
-import { FriendSprite } from "../ui/FriendSprite.js";
-import { ErrorBox } from "../ui/kit.js";
+import { ErrorState, FriendPortrait } from "../ui/index.js";
 import { createVenueHost, type ReportedRun } from "./host.js";
 import type { NativeVenueEntry, VenueMode } from "./registry.js";
 
@@ -43,7 +42,7 @@ export function NativeVenueView({ entry, mode, identity, onReported, onExit }: N
 
   if (error)
     return (
-      <ErrorBox
+      <ErrorState
         message={error}
         onRetry={() => {
           setError(null);
@@ -59,7 +58,7 @@ export function NativeVenueView({ entry, mode, identity, onReported, onExit }: N
       label={`${entry.manifest.name}: your Friend on a floating island`}
       fallback={
         <div className="stage-fallback-card">
-          <FriendSprite view={identity.friend} scale={8} />
+          <FriendPortrait view={identity.friend} scale={8} />
           <p>This device can't run the 3D stage (WebGL2). The 1-bit mode is on its way.</p>
         </div>
       }

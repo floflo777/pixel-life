@@ -1,4 +1,5 @@
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes } from "react";
+import { Link } from "../lib/router.js";
 import { cx } from "./cx.js";
 
 /**
@@ -63,6 +64,30 @@ export function ButtonLink({
 }: AnchorHTMLAttributes<HTMLAnchorElement> & ButtonLook) {
   return (
     <a
+      className={classes(
+        { ...(variant ? { variant } : {}), ...(size ? { size } : {}), ...(block ? { block } : {}) },
+        className,
+      )}
+      {...rest}
+    />
+  );
+}
+
+/**
+ * An in-app link styled as a button: plain left clicks navigate without a reload, while middle click, new tab and
+ * copy-link keep working (it is a real anchor).
+ */
+export function LinkButton({
+  to,
+  variant,
+  size,
+  block,
+  className,
+  ...rest
+}: Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & ButtonLook & { to: string }) {
+  return (
+    <Link
+      to={to}
       className={classes(
         { ...(variant ? { variant } : {}), ...(size ? { size } : {}), ...(block ? { block } : {}) },
         className,

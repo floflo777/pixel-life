@@ -8,6 +8,8 @@ import {
   ECON,
   type EconomyQuote,
   expectedRewardWei,
+  MARKET,
+  marketSplit,
   maxPrizeWei,
   rtpBps,
   SEED_PACK,
@@ -45,38 +47,28 @@ export const MEND_PARTS: readonly SplitPart[] = [
   { label: "to the mended Friend's wallet", kind: "friend", bps: ECON.targetBps },
 ];
 
-// ── Gold Pixel market (tokenomics §6; simulated in the MVP, GoldPixelMarket.sol is spec only) ──
+// ── Gold Pixel market (tokenomics §6; simulated in the MVP). Fees come from `MARKET` in @pl/shared, like the server. ──
 
-/** Market fee shares in bps of the listing price: 2 % burned, 2 % origin Friend royalty, 1 % creator. */
-export const MARKET_FEES = Object.freeze({ burnBps: 200, originBps: 200, creatorBps: 100 } as const);
 /** Seller's share after fees (95 %). */
-export const MARKET_SELLER_BPS = BPS - MARKET_FEES.burnBps - MARKET_FEES.originBps - MARKET_FEES.creatorBps;
+export const MARKET_SELLER_BPS = BPS - MARKET.feeBps;
 
-/** A Gold Pixel's fixed redemption value: the practical market floor (anyone can redeem for it). */
-export const GOLD_FLOOR_MICRO = weiToMicro(SEED_PACK.outcomes[3]?.reward ?? "0");
+/** A Gold Pixel's backing (its fixed redemption value): the practical market floor. */
+export const GOLD_FLOOR_MICRO = MARKET.backingMicro;
 
-/** Exact market split of a price (micro-RF). Fees round down; the seller gets the remainder so parts sum to the price. */
-export function marketSplit(priceMicro: number): { burn: number; origin: number; creator: number; seller: number } {
-  const burn = Math.floor((priceMicro * MARKET_FEES.burnBps) / BPS);
-  const origin = Math.floor((priceMicro * MARKET_FEES.originBps) / BPS);
-  const creator = Math.floor((priceMicro * MARKET_FEES.creatorBps) / BPS);
-  return { burn, origin, creator, seller: priceMicro - burn - origin - creator };
-}
-
-/** Split parts of a market sale; with a price, amounts are exact. */
+/** Split parts of a market sale; with a price, amounts are exact (the shared `marketSplit`, as the server charges). */
 export function marketParts(priceMicro?: number, originTokenId?: string): SplitPart[] {
   const s = priceMicro === undefined ? null : marketSplit(priceMicro);
   const m = (v: number | undefined): { micro?: number } => (v === undefined ? {} : { micro: v });
   return [
-    { label: "seller", kind: "seller", bps: MARKET_SELLER_BPS, ...m(s?.seller) },
-    { label: "burned", kind: "burn", bps: MARKET_FEES.burnBps, ...m(s?.burn) },
+    { label: "seller", kind: "seller", bps: MARKET_SELLER_BPS, ...m(s?.toSellerMicro) },
+    { label: "burned", kind: "burn", bps: MARKET.burnBps, ...m(s?.burnedMicro) },
     {
       label: originTokenId ? `royalty to origin #${originTokenId}` : "royalty to the origin Friend",
       kind: "friend",
-      bps: MARKET_FEES.originBps,
-      ...m(s?.origin),
+      bps: MARKET.originBps,
+      ...m(s?.toOriginMicro),
     },
-    { label: "game creator", kind: "creator", bps: MARKET_FEES.creatorBps, ...m(s?.creator) },
+    { label: "game creator", kind: "creator", bps: MARKET.creatorBps, ...m(s?.toCreatorMicro) },
   ];
 }
 
