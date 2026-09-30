@@ -6,6 +6,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { requireBinding } from "../auth/binding.js";
 import { readGuest, readSession } from "../auth/session.js";
 import type { AppContext } from "../context.js";
+import { GUEST_COOKIE, SESSION_COOKIE, parseCookies } from "../http/cookies.js";
 import { HttpError } from "../http/errors.js";
 import { clientIpFrom, originAllowed, originKeyMatches } from "../http/guards.js";
 import { CLOSE_CODES, type RoomConnection, type SocketIdentity } from "./rooms.js";
@@ -47,6 +48,17 @@ function refuse(socket: Duplex, error: HttpError, requestId: string): void {
   );
 }
 
+/** 401 `no_session`: the upgrade carries neither a session nor a guest cookie (the client must sign in or start). */
+function noSession(): HttpError {
+  return new HttpError(401, "unauthorized", "Sign in or start as a guest first.", { reason: "no_session" });
+}
+
+/** True when the upgrade carries no credential cookie at all, so there is nothing a hostile origin could ride on. */
+function hasNoCredentials(request: IncomingMessage): boolean {
+  const cookies = parseCookies(request.headers.cookie);
+  return !cookies.get(SESSION_COOKIE) && !cookies.get(GUEST_COOKIE);
+}
+
 /**
  * Resolves who is connecting (architecture §1.6 step 5, §1b.1 Join): an owner session with a binding that
  * passes a fresh-block eligibility re-check, else a guest cookie. An owner whose Friend is no longer
@@ -72,12 +84,12 @@ async function resolveIdentity(ctx: AppContext, request: IncomingMessage): Promi
   const guest = readGuest(ctx, request.headers);
   if (guest) return { kind: "guest", key: `guest:${guest.guestId}`, guestId: guest.guestId };
   if (session) throw new HttpError(403, "forbidden", "Pick one of your Friends first.", { reason: "no_binding" });
-  throw new HttpError(401, "unauthorized", "Sign in or start as a guest first.");
+  throw noSession();
 }
 
 /**
- * Handles HTTP upgrades on `server` for `/ws/room/:slug`: origin key → browser Origin → rate limit →
- * known room → identity → upgrade → room registry. Everything else is refused before any WebSocket exists.
+ * Handles HTTP upgrades on `server` for `/ws/room/:slug`: origin key → path → credentials present (else 401
+ * `no_session`) → browser Origin → rate limit → known room → identity → upgrade → room registry. Everything else is refused before any WebSocket exists.
  */
 export function attachWebSocket(server: Server, ctx: AppContext, log: FastifyBaseLogger): WebSocketLayer {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_PAYLOAD_BYTES, perMessageDeflate: false });
@@ -109,6 +121,9 @@ export function attachWebSocket(server: Server, ctx: AppContext, log: FastifyBas
       if (closing) throw new HttpError(503, "unavailable", "Server is shutting down.", { reason: "shutting_down" });
       if (!originKeyMatches(ctx.config, request.headers)) throw new HttpError(403, "forbidden", "Forbidden.");
       if (!match?.[1]) throw new HttpError(404, "not_found", "Unknown WebSocket path.");
+      // Without any credential cookie the answer is 401 whatever the Origin: cross-site socket hijacking needs the
+      // victim's cookies, so this leaks nothing, and clients (and the deploy smoke test) get the actionable status.
+      if (hasNoCredentials(request)) throw noSession();
       if (!originAllowed(ctx.config, request.headers.origin))
         throw new HttpError(403, "forbidden", "Origin not allowed.", { reason: "bad_origin" });
       const limit = ctx.limiters.wsConnect.take(`ip:${ip}`);

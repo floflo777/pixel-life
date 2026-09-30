@@ -61,11 +61,18 @@ describe("WebSocket bootstrap /ws/room/:slug", () => {
     if (outcome.open) outcome.socket.close();
   });
 
-  it("refuses before upgrading: no identity 401, bad origin 403, no origin key 403, unknown room 404", async () => {
+  it("refuses before upgrading: no identity 401 no_session, bad origin 403, no origin key 403, unknown room 404", async () => {
     h = await startHarness();
     const cookie = await guestCookie(h);
     const base = await listen(h);
-    expect(await connect(base, "/ws/room/plaza", edge)).toMatchObject({ open: false, status: 401 });
+    const anonymous = await connect(base, "/ws/room/plaza", edge);
+    expect(anonymous).toMatchObject({ open: false, status: 401 });
+    if (!anonymous.open)
+      expect(JSON.parse(anonymous.body)).toMatchObject({ error: "unauthorized", reason: "no_session" });
+    // No credential cookie → 401 no_session even from a foreign Origin (nothing to hijack; the client can act on it).
+    const foreign = await connect(base, "/ws/room/plaza", { ...edge, origin: "https://evil.example" });
+    expect(foreign).toMatchObject({ open: false, status: 401 });
+    if (!foreign.open) expect(JSON.parse(foreign.body)).toMatchObject({ reason: "no_session" });
     expect(await connect(base, "/ws/room/plaza", { ...edge, cookie, origin: "https://evil.example" })).toMatchObject({
       open: false,
       status: 403,
