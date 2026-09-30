@@ -10,3 +10,4 @@ export * from "./protocol.js";
 export * from "./market.js";
 export { assertNever, fnv1a32, mulberry32 } from "./util.js";
 export * from "./meta.js";
+export * from "./sim/index.js";
