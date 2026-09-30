@@ -107,6 +107,33 @@ export const PIXEL_PUTT: NativeVenueEntry = {
   load: async () => (await import("@pl/game")).createPixelPuttVenue() as unknown as NativeVenue<GameStage>,
 };
 
+/**
+ * Bump Sumo: a 4-Friend ring-out party game (GDD §11.8 B) against three real loaner Friends, never the player's own.
+ * Scarless: pixels knocked off reattach at the bout's end. Its hall is on the plaza's west rim and on the arena isle.
+ * The manifest mirrors `BUMP_SUMO_MANIFEST` (kept static so `@pl/game` stays lazy).
+ */
+export const BUMP_SUMO: NativeVenueEntry = {
+  manifest: {
+    id: "bump-sumo",
+    name: "Bump Sumo",
+    version: "0.1.0",
+    kind: "native",
+    room: "plaza",
+    requires: { ownedFriend: false },
+    economy: { sinks: [] },
+    results: { leaderboard: "score-desc", affectsScars: false },
+    thumbnail: "/favicon.svg",
+  },
+  rule: "Shove the other Friends off the island. Last one standing wins. Knocked-off pixels come back after the bout.",
+  modes: ["quick"],
+  load: async () => {
+    const [game, loaners] = await Promise.all([import("@pl/game"), import("../identity/loaners.js")]);
+    return game.createBumpSumoVenue({
+      rivals: () => loaners.loadLoaners().then((l) => l.map((f) => f.appearance)),
+    }) as unknown as NativeVenue<GameStage>;
+  },
+};
+
 /** The Seed Pack Booth: the stock SDK game in `apps/seed-pack`, built to `/venues/seed-pack/`. */
 export const SEED_PACK_BOOTH: SdkVenueEntry = {
   manifest: {
@@ -132,6 +159,7 @@ export const NATIVE_VENUES: Readonly<Record<string, NativeVenueEntry>> = {
   "pixel-life": PIXEL_LIFE,
   handheld: HANDHELD,
   "pixel-putt": PIXEL_PUTT,
+  "bump-sumo": BUMP_SUMO,
 };
 /** SDK venues by id. */
 export const SDK_VENUES: Readonly<Record<string, SdkVenueEntry>> = { "seed-pack": SEED_PACK_BOOTH };
