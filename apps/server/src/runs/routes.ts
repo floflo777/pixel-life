@@ -39,6 +39,7 @@ import { breakWhole, observeWhole } from "../game/whole.js";
 import { HttpError, validated } from "../http/errors.js";
 import { enforceRateLimit } from "../http/guards.js";
 import type { Executor } from "../repos/index.js";
+import { plausibleStartLost } from "./start.js";
 
 /** Decoded input logs are at most 8 KiB (GDD §5.8). */
 const MAX_INPUT_BYTES = 8 * 1024;
@@ -111,6 +112,18 @@ async function upsertDailyBest(
     .execute();
 }
 
+/** Pixels of this Friend restored by paid Regrows / Mends since `since` (a claimed run start's healing budget). */
+async function paidRestoredSince(db: Executor, tokenId: TokenIdStr, since: Date): Promise<number> {
+  const row = await db
+    .selectFrom("rf_ledger")
+    .select((eb) => eb.fn.coalesce(eb.fn.sum<string>("pixels"), eb.val("0")).as("px"))
+    .where("target_token", "=", tokenId)
+    .where("kind", "in", ["regrow", "mend"])
+    .where("created_at", ">=", since)
+    .executeTakeFirstOrThrow();
+  return Number(row.px);
+}
+
 /** Owner submission: stores the run and applies its scars with compare-and-swap (architecture §4.2). */
 async function submitOwnerRun(
   ctx: AppContext,
@@ -136,6 +149,14 @@ async function submitOwnerRun(
       .where("token_id", "=", tokenId)
       .executeTakeFirstOrThrow();
     const newbie = Number(priorRuns.n) < NEWBIE_RUNS;
+    const claimedStart =
+      body.startLost !== undefined && body.startedAt !== undefined
+        ? {
+            startLost: body.startLost,
+            startedAt: body.startedAt,
+            paidRestoredPx: await paidRestoredSince(trx, tokenId, new Date(Math.min(body.startedAt, t))),
+          }
+        : null;
 
     let reason: RunNotAppliedReason | undefined = newbie ? "newbie" : undefined;
     let scars: ScarState | null = null;
@@ -148,7 +169,13 @@ async function submitOwnerRun(
       const state = storedScars(row);
       const opts = { goldHeld, locked, front };
       const startLost = effectiveLost(state, t, tokenId, opts);
-      simFriend = { front, lost: startLost, familyId: art.familyId, goldHeld };
+      // Replay from the scars the client flew with when they are plausible (pixels may heal mid-run); scars below are
+      // still applied against the server's own `startLost`.
+      const replayLost =
+        claimedStart && plausibleStartLost({ ...claimedStart, now: t, front, lostNow: startLost, locked, goldHeld })
+          ? claimedStart.startLost
+          : startLost;
+      simFriend = { front, lost: replayLost, familyId: art.familyId, goldHeld };
       if (!reason && popcount(startLost) >= maxPersistedLost(n0)) reason = "floor";
       if (reason) {
         scars = settleScars(state, t, tokenId, opts);

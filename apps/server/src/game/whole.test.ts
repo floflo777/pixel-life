@@ -12,7 +12,14 @@ describe("nextWholeSince", () => {
   it("is null while the Friend still has effective scars", () => {
     const lost = fromIndices([1]);
     expect(
-      nextWholeSince({ stored: state(lost, T0), lostNow: lost, wholeSince: T0, now: T0 + DAY, tokenId: token, goldHeld: 0 }),
+      nextWholeSince({
+        stored: state(lost, T0),
+        lostNow: lost,
+        wholeSince: T0,
+        now: T0 + DAY,
+        tokenId: token,
+        goldHeld: 0,
+      }),
     ).toBeNull();
   });
 

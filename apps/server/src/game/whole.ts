@@ -58,9 +58,7 @@ export async function observeWhole(db: Executor, tokenId: TokenIdStr, now: Date)
       .updateTable("friends")
       .set({ whole_since: since === null ? null : new Date(since) })
       .where("token_id", "=", tokenId)
-      .where((eb) =>
-        before === null ? eb("whole_since", "is", null) : eb("whole_since", "=", new Date(before)),
-      )
+      .where((eb) => (before === null ? eb("whole_since", "is", null) : eb("whole_since", "=", new Date(before))))
       .execute();
   }
   const days = wholeDays(since, t);

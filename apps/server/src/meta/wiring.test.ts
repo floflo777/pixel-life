@@ -16,18 +16,7 @@ import { VENUE_DAILY_BITS_CAP, VENUE_DAILY_RUNS_MAX } from "../game/wallet.js";
 import { emptyTally, type RunTally } from "../runs/facts.js";
 import type { ReplayOutcome } from "../runs/replay-protocol.js";
 import type { RunVerifier } from "../runs/verifier.js";
-import {
-  ASYMMETRY,
-  MASK,
-  SKELETON,
-  art,
-  call,
-  guest,
-  owner,
-  setFriend,
-  startGame,
-  type Game,
-} from "../test/game.js";
+import { ASYMMETRY, MASK, SKELETON, art, call, guest, owner, setFriend, startGame, type Game } from "../test/game.js";
 import type { Harness } from "../test/harness.js";
 import { withMarket } from "../market/tables.js";
 import { heldStamps, passedBelts, readStats } from "./hooks.js";
@@ -121,7 +110,9 @@ describe("verified runs → stamps and belts", () => {
     const cookie = await owner(h, alice, MASK);
     await metaDb(h.db.kysely)
       .insertInto("belts")
-      .values(["white", "yellow"].map((b) => ({ token_id: tok(MASK), belt_id: b, run_id: null, earned_at: new Date() })))
+      .values(
+        ["white", "yellow"].map((b) => ({ token_id: tok(MASK), belt_id: b, run_id: null, earned_at: new Date() })),
+      )
       .execute();
 
     const wrongSeed = await call(h, "POST", "/api/runs", cookie, run({ beltTrial: "orange", seed: 1 }));
@@ -338,7 +329,13 @@ describe("Bits-only venues (bump-sumo, pixel-putt)", () => {
     expect((await call(h, "POST", "/api/runs", cookie, venueRun("bump-sumo"))).json()).toMatchObject({
       reason: "run_cooldown",
     });
-    const daily = await call(h, "POST", "/api/runs", cookie, venueRun("pixel-putt", { kind: "daily", day: "2026-10-01" }));
+    const daily = await call(
+      h,
+      "POST",
+      "/api/runs",
+      cookie,
+      venueRun("pixel-putt", { kind: "daily", day: "2026-10-01" }),
+    );
     expect(daily.json()).toMatchObject({ reason: "bad_kind" });
     const unknown = await call(h, "POST", "/api/runs", cookie, venueRun("seed-pack"));
     expect(unknown.statusCode).toBe(400);

@@ -8,7 +8,7 @@
 import { z } from "zod";
 import type { EconomyAction, EconomyMode, EconomyQuote, EconomyReceipt } from "./economy.js";
 import type { FriendAppearance, FriendPublic, FriendView, ScarState } from "./friend.js";
-import { type FamilyId, isHex64, isTokenIdStr, type TokenIdStr } from "./ids.js";
+import { type FamilyId, type Hex64, isHex64, isTokenIdStr, type TokenIdStr } from "./ids.js";
 import type { MarketInboxItem } from "./market.js";
 import { RUN_TICKS, type RunKind, type RunSummary } from "./sim-types.js";
 import { fnv1a32 } from "./util.js";
@@ -270,6 +270,16 @@ export interface RunSubmitReq {
    * `beltTrialSeed(beltTrial)`; the belt is awarded after replay verification if the run meets its requirement.
    */
   beltTrial?: string;
+  /**
+   * The scars the client started the run with (`effectiveLost` as it saw them at run start). Additive. Sent with
+   * `startedAt`, it lets the server replay the run against the Friend the player actually flew: pixels that regrew (or
+   * locks the client could not see) between start and submission otherwise make an honest run replay as a mismatch.
+   * The server only uses it when plausible (see the server's `plausibleStartLost`); scars are still applied against
+   * the server's own state.
+   */
+  startLost?: Hex64;
+  /** When the run started (epoch ms, client clock). Additive; only meaningful with `startLost`. */
+  startedAt?: number;
 }
 
 /**
@@ -587,6 +597,8 @@ export const requestSchemas = {
         .string()
         .regex(/^[a-z_]{1,32}$/)
         .exactOptional(),
+      startLost: hex64Schema.exactOptional(),
+      startedAt: int(0, Number.MAX_SAFE_INTEGER).exactOptional(),
     })
     .refine((r) => r.kind !== "daily" || r.day !== undefined, { message: "daily runs need a day", path: ["day"] }),
   "GET /api/daily/:day/board": z.object({ board: z.enum(["owners", "visitors"]) }),
