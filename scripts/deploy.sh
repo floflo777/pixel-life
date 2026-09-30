@@ -117,18 +117,17 @@ step_push() {
   remote prepare
 }
 
+# Local and gitignored (apps/web/dist), so it runs even under --dry-run: wrangler's dry run needs the directory.
 stage_assets() {
   local dist="$REPO/apps/web/dist"
   if jq -e '.scripts.build' "$REPO/apps/web/package.json" >/dev/null; then
     say "edge assets: building apps/web"
-    run npm --prefix "$REPO" run build -w @pl/web
+    npm --prefix "$REPO" run build -w @pl/web
   else
     say "edge assets: apps/web has no build script yet → placeholder page (deploy/edge-placeholder)"
-    run rm -rf "$dist"
-    run mkdir -p "$dist"
-    run cp -R "$REPO/deploy/edge-placeholder/." "$dist/"
+    rm -rf "$dist" && mkdir -p "$dist" && cp -R "$REPO/deploy/edge-placeholder/." "$dist/"
   fi
-  [[ "$DRY_RUN" == 1 || -f "$dist/index.html" ]] || die "no $dist/index.html after staging assets"
+  [[ -f "$dist/index.html" ]] || die "no $dist/index.html after staging assets"
 }
 
 step_edge() {
