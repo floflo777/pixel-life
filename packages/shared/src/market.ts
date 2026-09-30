@@ -224,7 +224,9 @@ export type MarketErrorReason =
   | "not_seller"
   | "price_changed"
   | "self_trade"
-  | "no_friend";
+  | "no_friend"
+  | "insufficient_funds"
+  | "conflict";
 
 /** Market inbox notifications (seller sale, origin royalty). Same envelope as the shared `InboxItem`. */
 export type MarketInboxItem =
