@@ -12,6 +12,7 @@ import {
   popcount,
   type DailySeed,
   type EconomyQuote,
+  type Hex64,
   type RunAck,
   type RunKind,
   SimEvents as EV,
@@ -135,6 +136,8 @@ const BUBBLES: Readonly<Record<number, string>> = {
   [KIND.fizz]: "tss…",
 };
 const ACCENT_HEX = [0xed927e, 0xf2ce68, 0x7db4db, 0xb3a0d8, 0xb3a0d8, 0xf2ce68] as const;
+/** Camera focus offset toward the viewer (world units): keeps the island's far rim and the HUD apart. */
+const CAM_Z = 0.5;
 const BITE_TIPS_KEY = "loose-pixels:bite-tips";
 
 function runIdOf(): string {
@@ -168,12 +171,14 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     minW: stage.rig.minVisibleWidth,
     timeScale: stage.timeScale,
   };
-  const pose: OrbitPose = { ...RUN_POSE, distance: 16 };
+  // Frame 1: the whole island in view, top well visible (GDD §2.4: pitch 38°, FOV 28°), underside cut by the bottom edge.
+  const pose: OrbitPose = { ...RUN_POSE, pitch: 38, fov: 28, distance: 14 };
   stage.rig.pose = { ...pose };
   stage.rig.followRate = reduced ? 1.5 : 6;
-  stage.rig.minVisibleWidth = 9.5;
+  // Portrait phones: pull back until the island (plus a little sky) fits the width.
+  stage.rig.minVisibleWidth = 12.5;
   stage.setAccess({ reducedMotion: reduced, noFlashes: opts.noFlashes ?? false });
-  stage.rig.snap(new Vector3(0, 0, 0.9));
+  stage.rig.snap(new Vector3(0, 0, CAM_Z));
 
   // ── Friend & scene ────────────────────────────────────────────────────────────────────────────────────────────────
   const friendView = () => host.identity.friend;
@@ -182,15 +187,30 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   const total = popcount(front);
   const startLostNow = () =>
     effectiveLost(friendView().pub.scars, Date.now(), appearance.tokenId, { goldHeld: friendView().pub.goldHeld });
-  let scene = new RunScene({
-    appearance,
-    startLost: startLostNow(),
-    goldHeld: friendView().pub.goldHeld,
-    arena: { a: 36, b: 24, name: arenaName },
-    seed: 21,
-    reducedMotion: reduced,
-    ...(opts.creatureFactory ? { creatureFactory: opts.creatureFactory } : {}),
-  });
+  /** Generic bubbles only for creature renderers that don't speak for themselves (the real Munchies do). */
+  let creaturesSpeak = !opts.creatureFactory;
+  const GULP_BUBBLE = -1;
+  const buildScene = (startLost: Hex64, seed: number, arena: { a: number; b: number }): RunScene =>
+    new RunScene({
+      appearance,
+      startLost,
+      goldHeld: friendView().pub.goldHeld,
+      arena: { ...arena, name: arenaName },
+      seed,
+      reducedMotion: reduced,
+      ...(opts.creatureFactory ? { creatureFactory: opts.creatureFactory } : {}),
+      onCreatureSpeak: (id, text, sec) => {
+        creaturesSpeak = true;
+        const c = cur?.creatures.find((q) => q.id === id);
+        if (c) hud.bubble(id, text, projectSim(c.x, c.z, c.y + 6), now(), sec * 1000);
+      },
+      onGulpSpeak: (text, sec) => {
+        const g = cur?.gulp;
+        if (g) hud.bubble(GULP_BUBBLE, text, projectSim(g.mouthX, g.mouthZ, 14), now(), sec * 1000);
+      },
+    });
+  const MEADOW = { a: 36, b: 24 };
+  let scene = buildScene(startLostNow(), 21, MEADOW);
   stage.scene.add(scene.root);
 
   const loaned = host.identity.loaned || host.identity.mode === "guest";
@@ -256,7 +276,9 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     const b = body();
     return b ? projectSim(b.x, b.z, 0) : null;
   };
-  const friendHead = (): ScreenPoint => project(tmp.copy(scene.friendPos).setY(scene.friendPos.y + 2.4));
+  // Callouts sit beside the Friend's head (frame 1: "−4 px" to its upper right), clear of the timer.
+  const friendHead = (): ScreenPoint =>
+    project(tmp.copy(scene.friendPos).add(tmp2.set(1.7, 1.9, 0)));
 
   // ── Juice ─────────────────────────────────────────────────────────────────────────────────────────────────────────
   const juice = (plan: JuicePlan, at?: ScreenPoint): void => {
@@ -299,6 +321,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       case "smash": {
         const kind = before.creatures.find((c) => c.id === e.a)?.kind ?? KIND.nib;
         const pts = e.b ?? 0;
+        if (e.a !== undefined) scene.smashCreature(e.a);
         scene.burst(x, z, [ACCENT_HEX[kind] ?? 0xeeeeee, 0x111111, 0xeeeeee], reduced ? 4 : 8, 1.5);
         if (pts > 0) {
           const combo = after.friend.combo;
@@ -360,6 +383,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         }
         break;
       case "hit":
+        if (e.a !== undefined && e.a >= 0) scene.hitCreature(e.a);
         if (e.b === EV.HIT_PLATE) {
           beat({ kind: "plate" }, projectSim(x, z, 2));
           audio.cue("bonk.shell", { x: pan() });
@@ -373,6 +397,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         }
         break;
       case "parry":
+        if (e.a !== undefined) scene.hitCreature(e.a);
         say({ text: "parry", tone: "paper" }, x, z, 4);
         break;
       case "glance":
@@ -385,14 +410,15 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         const cue = telegraphCue(kind);
         if (cue && kind !== KIND.snatch) audio.cue(cue, { x: pan(), gain: 0.7 });
         const text = BUBBLES[kind];
-        if (text && e.a !== undefined) hud.bubble(e.a, text, projectSim(x, z, 6), now(), 600);
+        if (text && e.a !== undefined && !creaturesSpeak) hud.bubble(e.a, text, projectSim(x, z, 6), now(), 600);
         break;
       }
       case "steal":
         audio.cue("snatch.cackle", { x: pan() });
-        if (e.a !== undefined) hud.bubble(e.a, "mine!", projectSim(x, z, 9), now(), 1200);
+        if (e.a !== undefined && !creaturesSpeak) hud.bubble(e.a, "mine!", projectSim(x, z, 9), now(), 1200);
         break;
       case "yank":
+        if (e.a !== undefined) scene.attackCreature(e.a);
         audio.cue("slurp.tongue", { x: pan() });
         break;
       case "spawn":
@@ -445,17 +471,20 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       }
       case EV.GULP_EV_BITE:
         beat({ kind: "gulpBite" });
+        scene.gulpBeat("bite");
         audio.cue("gulp.bite");
         scene.burst(x, z, [0xb9d984, 0xed927e, 0xb3a0d8], reduced ? 8 : 20, 0, 9);
         break;
       case EV.GULP_EV_TOOTH_HIT:
         beat({ kind: "tooth" }, projectSim(x, z, 2));
+        scene.gulpBeat("tooth", e.b ?? 0);
         audio.cue("gulp.tooth", { step: e.b ?? 0 });
         say(popCallout(100), x, z, 5);
         scene.burst(x, z, [0xf2ce68, 0xeeeeee], 6, 3, 6);
         break;
       case EV.GULP_EV_BURP:
         gulpBurped = true;
+        scene.gulpBeat("burp");
         audio.cue("gulp.burp");
         audio.music?.stinger("burp");
         hud.showBanner("gulp burped! +500", "lime", now(), 1600);
@@ -705,18 +734,6 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       }
     } else seed = host.seeds.free();
     const startLost = startLostNow();
-    // Rebuild the scene so the Friend shows its current scars (they may have changed since the last run).
-    scene.dispose();
-    scene = new RunScene({
-      appearance,
-      startLost,
-      goldHeld: friendView().pub.goldHeld,
-      arena: { a: 36, b: 24, name: arenaName },
-      seed: seed >>> 0,
-      reducedMotion: reduced,
-      ...(opts.creatureFactory ? { creatureFactory: opts.creatureFactory } : {}),
-    });
-    stage.scene.add(scene.root);
     cfg = {
       seed: seed >>> 0,
       kind,
@@ -726,6 +743,11 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     sim = simModule.createSim(cfg);
     cur = sim.view();
     prev = cur;
+    // Rebuild the scene so the Friend shows its current scars (they may have changed since the last run) and the
+    // island matches the sim's arena.
+    scene.dispose();
+    scene = buildScene(startLost, seed >>> 0, { a: cur.arena.a, b: cur.arena.b });
+    stage.scene.add(scene.root);
     log = new InputLog();
     steer.reset();
     warp.reset();
@@ -980,7 +1002,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     const b = body();
     if (b && state !== "results") {
       const k = reduced ? 0.15 : 0.35;
-      stage.rig.follow(tmp.set((b.x + b.vx * 0.12) * U * k, 0, (b.z + b.vz * 0.12) * U * k + 0.9));
+      stage.rig.follow(tmp.set((b.x + b.vx * 0.12) * U * k, 0, (b.z + b.vz * 0.12) * U * k + CAM_Z));
     }
     const wantDist = pose.distance * (time < dollyUntil ? 1.12 : 1);
     stage.rig.pose.distance += (wantDist - stage.rig.pose.distance) * Math.min(1, dt / 0.6);
@@ -1023,6 +1045,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       );
       const byId = new Map(cur.creatures.map((c) => [c.id, c] as const));
       hud.moveBubbles((id) => {
+        if (id === GULP_BUBBLE) return projectSim(cur?.gulp.mouthX ?? 0, cur?.gulp.mouthZ ?? 0, 14);
         const c = byId.get(id);
         return c ? projectSim(c.x, c.z, c.y + (c.kind === KIND.snatch ? 5 : 6)) : null;
       }, t);

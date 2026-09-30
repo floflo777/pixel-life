@@ -21,6 +21,8 @@ import {
   type Material,
 } from "three";
 import {
+  SIM_HZ,
+  SimTuning,
   EMPTY_MASK,
   fromIndices,
   type FriendAppearance,
@@ -37,24 +39,53 @@ import { PALETTE } from "../../stage/palette";
 import { buildClouds } from "../../world/clouds";
 import { buildIsland, type IslandModel } from "../../world/island";
 import { attachProjectedShadow, type ProjectedShadow } from "../../world/projected-shadow";
+import {
+  createGulpView,
+  createGulpWedge,
+  gulpMoodFromSim,
+  gulpPhaseFromSim,
+  type GulpView,
+  type GulpWedge,
+} from "../../creatures";
+import { createRealCreatureFactory } from "./creature-adapter";
+import { fitIsland } from "./island-fit";
 import { impactSquash, stretchFor } from "./juice";
 import { KIND, PX } from "./sim-module";
 
 /** World units per sim unit (1 u = 1 sprite pixel = the Friend's voxel size). */
 export const U = 0.15;
+/** Old Gulp's voxel edge in the run scene: its 3 tooth sockets (4 voxels apart) line up with the sim's teeth. */
+export const GULP_RUN_VOXEL = 0.2;
 /** In-run camera pitch (art bible: 32°); the Friend plate is pitched back by it so its face meets the camera. */
 export const RUN_PITCH_DEG = 32;
 const DEG = Math.PI / 180;
 
-/** A creature's renderer. `update` receives the interpolated creature and time; stepped animation is its business. */
+/**
+ * A creature's renderer. `update` receives the interpolated sim creature and scaled time (0 during hit-stop); the
+ * optional hooks let a richer renderer react to events (the real Munchies do; the placeholder ignores them).
+ */
 export interface CreatureVisual {
   readonly object: Object3D;
   update(c: CreatureView, t: { readonly dt: number; readonly time: number; readonly reducedMotion: boolean }): void;
+  /** Advances presentation only (a smashed creature is gone from the sim but its shatter still plays). */
+  tick?(dt: number): void;
+  /** Non-lethal hit reaction (plate bonk, parry, Slurp sulk). */
+  hit?(): void;
+  /** Lethal: plays the shatter; the scene keeps the visual until `finished`. */
+  smash?(): void;
+  /** One-shot attack (Slurp's tongue yank) toward a world point. */
+  attack?(target: Vector3 | null): void;
+  /** True once a smash has fully played. */
+  readonly finished?: boolean;
+  /** True when the visual emits its own speech lines (the venue then skips its generic bubbles). */
+  readonly speaks?: boolean;
+  /** Subscribes to speech lines ("MINE!"); returns an unsubscribe. */
+  onSpeak?(cb: (text: string, seconds: number) => void): () => void;
   dispose(): void;
 }
 
-/** Builds a creature visual for a kind (0 Nib … 5 Fizz). The creatures module plugs in here. */
-export type CreatureFactory = (kind: number) => CreatureVisual;
+/** Builds a creature visual for a kind (0 Nib … 5 Fizz); `id` is the sim creature id (a stable per-creature seed). */
+export type CreatureFactory = (kind: number, id?: number) => CreatureVisual;
 
 /** Options of the scene. */
 export interface RunSceneOptions {
@@ -65,6 +96,10 @@ export interface RunSceneOptions {
   readonly seed: number;
   readonly creatureFactory?: CreatureFactory;
   readonly reducedMotion: boolean;
+  /** Speech line from a creature visual (sim id, text, seconds). */
+  readonly onCreatureSpeak?: (id: number, text: string, seconds: number) => void;
+  /** Speech line from Old Gulp. */
+  readonly onGulpSpeak?: (text: string, seconds: number) => void;
 }
 
 // ── Placeholder creatures (until apps/game/src/creatures lands) ─────────────────────────────────────────────────────
@@ -242,15 +277,30 @@ function lostMaskOf(pixels: Uint8Array): Hex64 {
   return idx.length ? fromIndices(idx) : EMPTY_MASK;
 }
 
-/** Sector of the island ellipse from angle `dir` ± `half` (sim angle units), beyond the inner radius share. */
-function wedgeGeometry(a: number, b: number, dir: number, half: number, inner = 0.4): ShapeGeometry {
+/** Distance from the island centre to the rim ellipse along the unit direction (ux, uz) — the sim's `rimRadius`. */
+export function rimRadius(a: number, b: number, ux: number, uz: number): number {
+  const qa = ux / a;
+  const qb = uz / b;
+  return 1 / Math.sqrt(qa * qa + qb * qb);
+}
+
+/**
+ * The sim's wedge sector (polar angle `dir` ± `half`, sim angle units) between `inner` and `outer` shares of the rim
+ * radius, laid on the ground plane in world units. Matches `Island.inWedgeSector`, so what looks bitten is bitten.
+ */
+export function wedgeGeometry(a: number, b: number, dir: number, half: number, inner = 0.4, outer = 1.12): ShapeGeometry {
   const shape = new Shape();
   const steps = 24;
   const t0 = ((dir - half) / 4096) * Math.PI * 2;
   const t1 = ((dir + half) / 4096) * Math.PI * 2;
-  const pt = (t: number, k: number): [number, number] => [Math.cos(t) * a * k * U, Math.sin(t) * b * k * U];
+  const pt = (t: number, k: number): [number, number] => {
+    const ux = Math.cos(t);
+    const uz = Math.sin(t);
+    const r = rimRadius(a, b, ux, uz) * k * U;
+    return [ux * r, uz * r];
+  };
   shape.moveTo(...pt(t0, inner));
-  for (let i = 0; i <= steps; i++) shape.lineTo(...pt(lerp(t0, t1, i / steps), 1.12));
+  for (let i = 0; i <= steps; i++) shape.lineTo(...pt(lerp(t0, t1, i / steps), outer));
   for (let i = steps; i >= 0; i--) shape.lineTo(...pt(lerp(t0, t1, i / steps), inner));
   const g = new ShapeGeometry(shape);
   // Shape lives in XY; lay it on the ground with +Y → +Z (sim z points toward the camera).
@@ -267,7 +317,12 @@ export class RunScene {
   private readonly friendRoot = new Group();
   private readonly shadows: ProjectedShadow[] = [];
   private readonly creatures = new Map<number, CreatureVisual>();
+  /** Smashed creatures whose shatter is still playing (gone from the sim already). */
+  private readonly dying: CreatureVisual[] = [];
+  private readonly creatureShadows = new Map<Object3D, ProjectedShadow>();
+  private readonly speechOff = new Map<number, () => void>();
   private readonly factory: CreatureFactory;
+  private readonly onCreatureSpeak: ((id: number, text: string, seconds: number) => void) | undefined;
   private readonly shards: Shards;
   private readonly shardMaterial: Material;
   private readonly clouds: { mesh: Mesh; dispose(): void };
@@ -286,13 +341,16 @@ export class RunScene {
   private wedge: Mesh | null = null;
   private wedgeKey = "";
   private readonly wedgeMat = new MeshBasicMaterial({ color: PALETTE.lilacDark, transparent: true, opacity: 0 });
-  private readonly gulp: Group;
-  private readonly gulpMats: Material[] = [];
-  private readonly gulpGeos: BoxGeometry[] = [];
-  private readonly teeth: Mesh[] = [];
-  private readonly toothLitMat: Material;
-  private readonly toothMat: Material;
-  private gulpY = -8;
+  private readonly gulp: GulpView;
+  private readonly gulpSpeechOff: () => void;
+  private shadow: GulpWedge | null = null;
+  private shadowKey = "";
+  private readonly toothRings: Mesh[] = [];
+  private readonly toothRingGeo = new RingGeometry(0.34, 0.5, 16);
+  private readonly toothLitMat = new MeshBasicMaterial({ color: PALETTE.sun, side: DoubleSide });
+  private readonly toothMat = new MeshBasicMaterial({ color: PALETTE.ink, side: DoubleSide });
+  private gulpPhase = -1;
+  private teethKey = "";
   private readonly ripples: { mesh: Mesh; t: number }[] = [];
   private readonly rippleGeo = new RingGeometry(0.5, 0.62, 20);
   private readonly rippleMat = new MeshBasicMaterial({ color: PALETTE.ink, side: DoubleSide });
@@ -300,14 +358,16 @@ export class RunScene {
 
   constructor(opts: RunSceneOptions) {
     this.reducedMotion = opts.reducedMotion;
-    this.factory = opts.creatureFactory ?? placeholderCreature;
+    this.factory = opts.creatureFactory ?? createRealCreatureFactory();
+    this.onCreatureSpeak = opts.onCreatureSpeak;
     const { a, b } = opts.arena;
     const cell = 0.24;
+    const fit = fitIsland(a, b, U, cell, opts.seed % 1000);
     this.island = buildIsland({
-      radius: Math.round((a * U) / cell) + 1,
+      radius: fit.radius,
       cell,
-      seed: opts.seed % 1000,
-      squash: b / a,
+      seed: fit.seed,
+      squash: fit.squash,
       underside: 11,
       scatter: { tufts: 70, flowers: 60 },
     });
@@ -337,40 +397,20 @@ export class RunScene {
     untagged(this.shards.mesh);
     this.root.add(this.shards.mesh);
 
-    // Old Gulp placeholder: a paper cloud whale with an ink eye and three teeth.
-    this.gulp = new Group();
-    this.gulp.name = "old-gulp";
-    const paper = createBandMaterial({ color: PALETTE.cloud, lightMix: 0.2 });
-    const ink = createBandMaterial({ color: PALETTE.ink });
-    const tongue = createBandMaterial({ color: PALETTE.lilac });
-    this.gulpMats.push(paper, ink, tongue);
-    const box = (w: number, h: number, d: number, m: Material, x: number, y: number, z: number): Mesh => {
-      const g = new BoxGeometry(w, h, d);
-      this.gulpGeos.push(g);
-      const mesh = new Mesh(g, m);
-      mesh.position.set(x, y, z);
-      this.gulp.add(mesh);
-      return mesh;
-    };
-    box(7.2, 2.6, 2.4, paper, 0, 1.3, -0.6);
-    box(6.2, 0.9, 2.2, paper, 0.3, 3, -0.8);
-    box(0.45, 0.45, 0.1, ink, -2.2, 2.2, 0.65);
-    box(4.6, 0.25, 0.6, ink, 0.2, 0.55, 0.62);
-    box(3.6, 0.12, 2.2, tongue, 0.2, 0.2, 1.2);
-    this.gulp.visible = false;
-    this.root.add(this.gulp);
-    this.toothMat = createBandMaterial({ color: PALETTE.paper });
-    this.toothLitMat = createBandMaterial({ color: PALETTE.sun, lightMix: 0.6 });
-    const toothGeo = new BoxGeometry(0.42, 0.5, 0.42).translate(0, 0.25, 0);
-    this.gulpGeos.push(toothGeo);
+    // Old Gulp (creatures module) and the ground rings that mark the sim's teeth (the gameplay truth).
+    this.gulp = createGulpView({ voxel: GULP_RUN_VOXEL });
+    this.gulp.object.visible = false;
+    this.gulpSpeechOff = this.gulp.onSpeak((line) => opts.onGulpSpeak?.(line.text, line.duration));
+    this.root.add(this.gulp.object);
     for (let i = 0; i < 3; i++) {
-      const t = new Mesh(toothGeo, this.toothMat);
-      t.visible = false;
-      t.name = `gulp-tooth-${i}`;
-      this.teeth.push(t);
-      this.root.add(t);
+      const ring = new Mesh(this.toothRingGeo, this.toothMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.visible = false;
+      ring.name = `gulp-tooth-ring-${i}`;
+      untagged(ring);
+      this.toothRings.push(ring);
+      this.root.add(ring);
     }
-    tagGlow(this.teeth[0] ?? new Object3D(), "lamp");
   }
 
   /** Starts the visual hop (parabola, apex 3 u) for flings with p ≥ 0.4. */
@@ -378,6 +418,34 @@ export class RunScene {
     if (power < 0.4) return;
     this.hopStart = time;
     this.hopHeight = 3 * U * power;
+  }
+
+  /** A non-lethal hit on creature `id` (paper flash + squash). */
+  hitCreature(id: number): void {
+    this.creatures.get(id)?.hit?.();
+  }
+
+  /** Creature `id` was smashed: its visual shatters in place and leaves when the shatter has played. */
+  smashCreature(id: number): void {
+    const v = this.creatures.get(id);
+    if (!v?.smash) return;
+    v.smash();
+    this.creatures.delete(id);
+    this.speechOff.get(id)?.();
+    this.speechOff.delete(id);
+    this.dying.push(v);
+  }
+
+  /** Creature `id` attacks toward the Friend (Slurp's tongue yank). */
+  attackCreature(id: number): void {
+    this.creatures.get(id)?.attack?.(this.friendRoot.getWorldPosition(new Vector3()).setY(0.3));
+  }
+
+  /** Old Gulp beats that are not phase changes. */
+  gulpBeat(beat: "bite" | "burp" | "tooth", tooth = 0): void {
+    if (beat === "bite") this.gulp.playBite();
+    else if (beat === "burp") this.gulp.playBurp();
+    else this.gulp.playToothHit(tooth);
   }
 
   /** Triggers the stepped impact squash. */
@@ -559,10 +627,13 @@ export class RunScene {
       live.add(c.id);
       let v = this.creatures.get(c.id);
       if (!v) {
-        v = this.factory(c.kind);
+        v = this.factory(c.kind, c.id);
         this.creatures.set(c.id, v);
         this.root.add(v.object);
-        this.shadows.push(attachProjectedShadow(v.object, { groundY: 0 }));
+        this.creatureShadows.set(v.object, attachProjectedShadow(v.object, { groundY: 0 }));
+        const speak = this.onCreatureSpeak;
+        const id = c.id;
+        if (v.onSpeak && speak) this.speechOff.set(id, v.onSpeak((text, sec) => speak(id, text, sec)));
       }
       const p = prevBy.get(c.id) ?? c;
       const ic: CreatureView = { ...c, x: lerp(p.x, c.x, alpha), y: lerp(p.y, c.y, alpha), z: lerp(p.z, c.z, alpha) };
@@ -571,61 +642,98 @@ export class RunScene {
     }
     for (const [id, v] of this.creatures) {
       if (live.has(id)) continue;
+      // Fled, eaten or carried off: gone at once (smashes were moved to `dying` by the event).
       this.creatures.delete(id);
-      this.root.remove(v.object);
-      v.dispose();
+      this.speechOff.get(id)?.();
+      this.speechOff.delete(id);
+      this.dropVisual(v);
     }
+    for (let i = this.dying.length - 1; i >= 0; i--) {
+      const v = this.dying[i];
+      if (!v) continue;
+      v.tick?.(t.dt);
+      if (v.finished !== false) {
+        this.dying.splice(i, 1);
+        this.dropVisual(v);
+      }
+    }
+  }
+
+  private dropVisual(v: CreatureVisual): void {
+    this.creatureShadows.get(v.object)?.dispose();
+    this.creatureShadows.delete(v.object);
+    this.root.remove(v.object);
+    v.dispose();
   }
 
   private syncGulp(cur: FullSimView, time: number, simDt: number): void {
     const g = cur.gulp;
-    const a = cur.arena.a;
-    const b = cur.arena.b;
-    // Shadow wedge (dither steps 25 → 75 % over 2 s in 4 steps) and the bitten-out wedge.
-    const show = g.shadow || g.wedgeOn;
+    const { a, b } = cur.arena;
     const key = `${g.wedgeDir}:${g.wedgeHalf}`;
-    if (show && key !== this.wedgeKey) {
+    // The bitten wedge: those island voxels are gone, so the cloud sea (fog) shows through.
+    if ((g.shadow || g.wedgeOn) && key !== this.wedgeKey) {
       this.wedgeKey = key;
       if (this.wedge) {
         this.root.remove(this.wedge);
         this.wedge.geometry.dispose();
       }
-      this.wedge = new Mesh(wedgeGeometry(a, b, g.wedgeDir, g.wedgeHalf), this.wedgeMat);
+      this.wedge = new Mesh(wedgeGeometry(a, b, g.wedgeDir, g.wedgeHalf, SimTuning.GULP_WEDGE_INNER), this.wedgeMat);
       this.wedge.position.y = 0.012;
       this.wedge.renderOrder = 2;
       untagged(this.wedge);
       this.root.add(this.wedge);
+      // The telegraph: the creatures module's Bayer shadow, on the same sector the sim will bite.
+      this.shadow ??= createGulpWedge({ radius: 1, halfAngle: Math.PI / 4 });
+      this.shadow.object.geometry.dispose();
+      this.shadow.object.geometry = wedgeGeometry(a, b, g.wedgeDir, g.wedgeHalf, SimTuning.GULP_WEDGE_INNER, 1.02);
+      this.root.add(this.shadow.object);
+      this.shadowKey = key;
     }
     if (this.wedge) {
-      this.wedge.visible = show;
-      if (g.wedgeOn) {
-        this.wedgeMat.color.setHex(PALETTE.fog);
-        this.wedgeMat.opacity = 1;
-      } else if (g.shadow) {
-        this.wedgeMat.color.setHex(PALETTE.lilacDark);
-        const since = (cur.tick - 2400) / 120;
-        this.wedgeMat.opacity = [0.25, 0.4, 0.55, 0.7][Math.max(0, Math.min(3, Math.floor(since * 4)))] ?? 0.7;
-      }
+      this.wedge.visible = g.wedgeOn;
+      this.wedgeMat.color.setHex(PALETTE.fog);
+      this.wedgeMat.opacity = 1;
     }
-    // Gulp body: rises at the rim on the wedge side.
-    const target = g.phase === 1 ? -3.2 : g.phase === 2 || g.phase === 3 ? -0.9 : -9;
-    this.gulpY += (target - this.gulpY) * Math.min(1, simDt * 3);
-    this.gulp.visible = g.phase >= 1 && g.phase <= 4 && this.gulpY > -8.5;
-    const dir = (g.wedgeDir / 4096) * Math.PI * 2;
-    const rim = Math.hypot(Math.cos(dir) * a, Math.sin(dir) * b) * U;
-    this.gulp.position.set(Math.cos(dir) * (rim + 1.4), this.gulpY, Math.sin(dir) * (rim + 1.4));
-    // Face the island centre on screen: turn so its mouth side points inward.
-    this.gulp.rotation.y = -dir - Math.PI / 2;
-    if (g.phase === 3 && !this.reducedMotion) this.gulp.scale.setScalar(1 + (Math.floor(time * 8) % 2) * 0.04);
-    else this.gulp.scale.setScalar(1);
+    if (this.shadow) {
+      const since = (cur.tick - SimTuning.GULP_RUMBLE) / SIM_HZ;
+      this.shadow.setTime(g.shadow && !g.wedgeOn && this.shadowKey === key ? since : -1);
+    }
+    // Old Gulp: rises at the outer rim during the telegraph, then rests its chin on the new rim, teeth on the sim's.
+    const view = this.gulp;
+    const mood = gulpMoodFromSim(g.mood);
+    if (view.mood !== mood) view.setMood(mood);
+    if (g.phase !== this.gulpPhase) {
+      this.gulpPhase = g.phase;
+      view.setState(gulpPhaseFromSim(g.phase));
+    }
+    const lit = g.teeth.findIndex((t) => t.lit && !t.hit);
+    const teethKey = `${lit}:${g.teeth.map((t) => (t.hit ? 1 : 0)).join("")}`;
+    if (teethKey !== this.teethKey) {
+      this.teethKey = teethKey;
+      view.setTeeth(
+        lit,
+        g.teeth.map((t) => t.hit),
+      );
+    }
+    const t = (g.wedgeDir / 4096) * Math.PI * 2;
+    const ux = Math.cos(t);
+    const uz = Math.sin(t);
+    const share = g.phase <= 1 ? 1.02 : SimTuning.GULP_WEDGE_INNER;
+    const r = rimRadius(a, b, ux, uz) * share * U;
+    view.object.position.set(ux * r, 0, uz * r);
+    // Local −x points at the island centre.
+    view.object.rotation.y = Math.atan2(-uz, ux);
+    view.object.visible = g.phase >= 1 && g.phase <= 4;
+    view.update(simDt);
+    // Ground rings on the sim's teeth: the lit one glows sun (the only one that scores), the others are ink.
     for (const [i, th] of g.teeth.entries()) {
-      const m = this.teeth[i];
+      const m = this.toothRings[i];
       if (!m) continue;
       m.visible = g.phase === 2 && !th.hit;
-      m.position.set(th.x * U, 0, th.z * U);
-      m.material =
-        th.lit && Math.floor(time * 4) % 2 === 0 ? this.toothLitMat : th.lit ? this.toothLitMat : this.toothMat;
-      m.scale.setScalar(th.lit ? 1.25 : 1);
+      m.position.set(th.x * U, 0.02, th.z * U);
+      const blink = !this.reducedMotion && Math.floor(time * 4) % 2 === 1;
+      m.material = th.lit ? this.toothLitMat : this.toothMat;
+      m.scale.setScalar(th.lit ? (blink ? 1.15 : 1.35) : 0.9);
     }
   }
 
@@ -633,8 +741,14 @@ export class RunScene {
   dispose(): void {
     this.root.removeFromParent();
     for (const s of this.shadows) s.dispose();
+    for (const off of this.speechOff.values()) off();
+    this.speechOff.clear();
     for (const v of this.creatures.values()) v.dispose();
     this.creatures.clear();
+    for (const v of this.dying) v.dispose();
+    this.dying.length = 0;
+    for (const sh of this.creatureShadows.values()) sh.dispose();
+    this.creatureShadows.clear();
     this.friend.dispose();
     this.island.dispose();
     this.clouds.dispose();
@@ -644,8 +758,11 @@ export class RunScene {
     this.bumperMat.dispose();
     this.wedge?.geometry.dispose();
     this.wedgeMat.dispose();
-    for (const g of this.gulpGeos) g.dispose();
-    for (const m of this.gulpMats) m.dispose();
+    this.gulpSpeechOff();
+    this.gulp.dispose();
+    this.shadow?.object.geometry.dispose();
+    this.shadow?.dispose();
+    this.toothRingGeo.dispose();
     this.toothMat.dispose();
     this.toothLitMat.dispose();
     this.rippleGeo.dispose();
