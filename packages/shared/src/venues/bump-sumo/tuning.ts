@@ -14,17 +14,17 @@ export const ROUNDS = 3;
 
 // ── Ring ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 /** Ring radius at the start of each round (u). */
-export const RING_R0 = 34;
+export const RING_R0 = 40;
 /** Smallest radius the ring shrinks to (u). */
-export const RING_MIN = 12;
+export const RING_MIN = 13;
 /** Fight ticks before the ring starts shrinking (10 s). */
 export const SHRINK_START = 600;
-/** Shrink speed once it starts (u/s): 34 → 12 u in ≈15 s, so no round drags. */
-export const SHRINK_RATE = 1.5;
+/** Shrink speed once it starts (u/s): 40 → 13 u in 15 s, so no round drags. */
+export const SHRINK_RATE = 1.8;
 /** Hard round limit (30 s of fighting): survivors are ranked by pixels, then by distance to the centre. */
 export const ROUND_MAX = 1800;
 /** Distance of the four start pads from the centre (u). */
-export const PAD_RADIUS = 18;
+export const PAD_RADIUS = 21;
 
 // ── Phases ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 /** "Round n" card + "FIGHT!" (2 s, fighters frozen on their pads). */

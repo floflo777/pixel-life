@@ -360,6 +360,8 @@ export class Match {
     }
     this.debris = [];
     this.trail = [];
+    // The ring grows back for the bow.
+    this.ringR = T.RING_R0;
     this.setPhase(SumoPhase.Done);
     this.done = true;
     this.emit("matchEnd", this.winner, this.score);
