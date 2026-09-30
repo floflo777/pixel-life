@@ -101,7 +101,9 @@ const CSS = `
   padding:3px 8px;box-shadow:2px 2px 0 var(--ink)}
 @media (max-width:520px){.lp-score{min-width:0}.lp-score .lp-num{font-size:20px}.lp-timer .lp-num{font-size:20px}
   .lp-friend canvas{width:48px;height:48px}.lp-friend .lp-num{font-size:18px}.lp-friend .lp-meta{display:none}
-  .lp-sweep .lp-blocks i{width:10px;height:10px}.lp-sweep .lp-label{display:none}.lp-pause{top:96px}.lp-banner{font-size:28px}}
+  .lp-sweep .lp-blocks i{width:10px;height:10px}.lp-sweep .lp-label{display:none}.lp-banner{font-size:28px;top:36%}
+  .lp-timer{top:8px;padding:4px 12px}.lp-score,.lp-friend{top:60px}.lp-score{padding:6px 10px}.lp-friend{padding:6px 10px}
+  .lp-pause{top:150px}}
 `;
 
 /** Per-frame HUD state. */

@@ -155,6 +155,11 @@ const BUBBLES: Readonly<Record<number, string>> = {
 const ACCENT_HEX = [0xed927e, 0xf2ce68, 0x7db4db, 0xb3a0d8, 0xb3a0d8, 0xf2ce68] as const;
 /** Camera focus offset toward the viewer (world units): keeps the island's far rim and the HUD apart. */
 const CAM_Z = 0.5;
+/** Window event the web shell's coachmarks listen to (apps/web onboarding `COACH_DOM_EVENT`). */
+export const COACH_DOM_EVENT = "pl:coach";
+/** Coach event names the venue reports (apps/web onboarding `COACH_EVENTS`). */
+export type CoachEvent =
+  "run:start" | "fling" | "pixels:loose" | "pixels:grabbed" | "pixels:scarred" | "pause" | "run:end";
 const BITE_TIPS_KEY = "loose-pixels:bite-tips";
 
 function runIdOf(): string {
@@ -310,6 +315,25 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   // Callouts sit beside the Friend's head (frame 1: "−4 px" to its upper right), clear of the timer.
   const friendHead = (): ScreenPoint => project(tmp.copy(scene.friendPos).add(tmp2.set(1.7, 1.9, 0)));
 
+  // ── Coachmarks (web onboarding listens for `pl:coach` window events; unknown names are ignored) ─────────────────────
+  let coachTick = -1;
+  const coachSent = new Set<CoachEvent>();
+  const coach = (name: CoachEvent): void => {
+    // Pixel beats come in bursts (one event per pixel): report each name at most once per sim tick.
+    const tick = cur?.tick ?? -1;
+    if (tick !== coachTick) {
+      coachTick = tick;
+      coachSent.clear();
+    }
+    if (coachSent.has(name)) return;
+    coachSent.add(name);
+    try {
+      window.dispatchEvent(new CustomEvent(COACH_DOM_EVENT, { detail: name }));
+    } catch {
+      // No window (tests) or a host that forbids custom events: hints are optional.
+    }
+  };
+
   // ── Juice ─────────────────────────────────────────────────────────────────────────────────────────────────────────
   const juice = (plan: JuicePlan, at?: ScreenPoint): void => {
     const t = now();
@@ -345,6 +369,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     };
     switch (e.type) {
       case "launch":
+        coach("fling");
         audio.cue("fling.release", { gain: 0.6 + ((e.b ?? 0) / 1023) * 0.6, x: pan() });
         scene.hop(time, (e.b ?? 0) / 1023);
         break;
@@ -372,6 +397,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       }
       case "bite": {
         const px = e.b ?? 1;
+        coach("pixels:loose");
         beat({ kind: "bite", px });
         scene.squash(time);
         sayFriend(lossCallout(px));
@@ -391,6 +417,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         audio.cue("pixel.pop", { x: pan() });
         break;
       case "pixelBack":
+        coach("pixels:grabbed");
         if (e.b === 1) {
           beat({ kind: "clutch" });
           sayFriend(grabCallout(true));
@@ -401,6 +428,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         }
         break;
       case "pixelLost":
+        coach("pixels:scarred");
         audio.cue(e.b === EV.LOST_EDGE || e.b === EV.LOST_GULP ? "pixel.fall" : "pixel.lost", { x: pan() });
         break;
       case "edge":
@@ -768,6 +796,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     if (state !== "run") return;
     if (p === paused && !(p === false && resumeAt > 0)) return;
     if (p) {
+      coach("pause");
       paused = true;
       resumeAt = 0;
       hud.setCountdown(0);
@@ -836,6 +865,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     paused = false;
     resumeAt = 0;
     state = "run";
+    coach("run:start");
     audio.cue("run.start");
     audio.music?.play("run", seed);
     audio.music?.setIntensity(PHASE_INTENSITY[0]);
@@ -851,6 +881,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   const endRun = (): void => {
     if (!sim || !cfg || !cur || state !== "run") return;
     state = "ending";
+    coach("run:end");
     aim = null;
     const summary = sim.summary();
     const inputs = log.inputs;
@@ -1116,7 +1147,10 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     const b = body();
     if (b && state !== "results") {
       // While Old Gulp is up the camera favours the island centre so the whale and the whole rim stay in frame.
-      const k = reduced ? 0.15 : gulpUp ? 0.12 : 0.35;
+      // Portrait: the readability clamp (≥ 3 px per sprite pixel) can't fit the whole island in the width, so the camera
+      // leans harder toward the Friend to keep it (the thing you steer) on screen.
+      const portrait = canvas.clientWidth < canvas.clientHeight;
+      const k = reduced ? 0.15 : gulpUp ? 0.12 : portrait ? 0.55 : 0.35;
       stage.rig.follow(tmp.set((b.x + b.vx * 0.12) * U * k, 0, (b.z + b.vz * 0.12) * U * k + CAM_Z));
     }
     // Old Gulp: dolly out 12 % over 0.6 s (GDD §2.4), none under reduced motion (the static framing fits).

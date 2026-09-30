@@ -29,6 +29,11 @@ async function open(query, viewport = { width: 1280, height: 720 }, scale = 1) {
   await page.goto(`${base}?${query}`);
   await page.waitForFunction(() => window.__lp?.ready === true, null, { timeout: 120_000 });
   await page.evaluate(() => document.fonts.ready);
+  // Record the coachmark events the venue dispatches (web onboarding listens for them).
+  await page.evaluate(() => {
+    window.__coach = [];
+    addEventListener("pl:coach", (e) => window.__coach.push(e.detail));
+  });
   // From here on the page runs on a fake clock we advance explicitly.
   // install() alone lets time keep flowing in real time; pausing makes screenshots free (no game time passes).
   await page.clock.install();
@@ -118,6 +123,12 @@ try {
       await dbg(page, "advance", [Math.max(0, 3590 - t)]);
       await run(page, 3500);
       await shot(page, "results");
+      const reported = await page.evaluate(() => {
+        const r = window.__lp.harness.log.results.at(-1);
+        return r ? { ...r, inputs: r.inputs.length } : null;
+      });
+      console.log("reported", JSON.stringify(reported));
+      console.log("coach", JSON.stringify(await page.evaluate(() => [...new Set(window.__coach)])));
       await page.evaluate(() => {
         const c = window.__lp.instance.debug.shareCanvas();
         if (c) {
@@ -136,7 +147,7 @@ try {
     // 7 s at 12 fps of a clumsy autopilot (bites, loose pixels, sweeps and pops), starting in the first wave.
     const { page, errors } = await open("quality=high&seed=11&auto=free");
     await dbg(page, "autopilot", ["novice", 8]);
-    await run(page, 6000);
+    await run(page, 21000);
     await mkdir(`${outDir}gif`, { recursive: true });
     for (let f = 0; f < 84; f++) {
       await page.screenshot({ path: `${outDir}gif/f${String(f).padStart(3, "0")}.png` });
