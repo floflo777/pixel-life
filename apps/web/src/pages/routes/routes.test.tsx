@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Api } from "../../api/client.js";
 import { createServices, type Services, ServicesContext } from "../../app/services.js";
 import { ACCOUNT, flush, ownedView } from "../../test/fixtures.js";
+import { fixtureView } from "../__fixtures__/friend.js";
+import FriendRoute from "./FriendRoute.js";
 import GreenhouseRoute from "./GreenhouseRoute.js";
 import InboxRoute from "./InboxRoute.js";
 import MarketRoute from "./MarketRoute.js";
@@ -161,5 +163,29 @@ describe("GreenhouseRoute", () => {
     expect(s.meta.store.get().me?.bits).toBe(250);
     // Planter (250 bits) is on the shelf; the header is the second match.
     expect((await screen.findAllByText("250 bits")).length).toBe(2);
+  });
+});
+
+describe("FriendRoute", () => {
+  const other = fixtureView({ tokenId: "7730", lostCount: 5, updatedAt: Date.now() });
+  const stubs = {
+    appearance: vi.fn(async () => other.appearance),
+    publicFriend: vi.fn(async () => other.pub),
+    home: vi.fn(async () => metaMe(0).home),
+  };
+
+  it("opens the Mend panel on ?action=mend for an owner", async () => {
+    const s = await setup(stubs);
+    render(wrap(s, <FriendRoute params={{ tokenId: "7730" }} search={new URLSearchParams("action=mend")} />));
+    expect(await screen.findByRole("heading", { name: "mend #7730" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "quick select" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /#7730/, level: 1 })).toBeTruthy();
+  });
+
+  it("explains that mending needs your own Friend to guests", async () => {
+    const s = await setup(stubs, false);
+    render(wrap(s, <FriendRoute params={{ tokenId: "7730" }} search={new URLSearchParams("action=mend")} />));
+    expect(await screen.findByRole("link", { name: "use my friend" })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "quick select" })).toBeNull();
   });
 });

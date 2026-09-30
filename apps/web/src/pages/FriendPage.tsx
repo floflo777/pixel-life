@@ -74,6 +74,8 @@ export interface FriendPageProps {
   onSeedPack?: () => void;
   onOpenFriend?: (tokenId: TokenIdStr) => void;
   onShare?: () => void;
+  /** A panel shown above the page body (the Mend flow opened with `?action=mend`). */
+  lead?: ReactNode;
   /** Extra cards after the page body (isle, stamps, belt). */
   footer?: ReactNode;
   /** Pinned clock for tests. */
@@ -118,6 +120,7 @@ function FriendSkeleton() {
 export function FriendPage(props: FriendPageProps) {
   return (
     <div className="pl-page">
+      {props.lead}
       <RemoteView
         value={props.friend}
         {...(props.onRetry ? { onRetry: props.onRetry } : {})}
