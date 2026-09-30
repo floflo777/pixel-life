@@ -7,18 +7,40 @@
  * chain; `POST /api/session/friend` re-runs the SDK's `readGenerationEligibility` at the mock chain's head, exactly as
  * the server does, and refuses with `not_owner`.
  */
+import { existsSync } from "node:fs";
 import type { Page } from "@playwright/test";
 import { loadDesignFriends, type MockRpcServer } from "@pl/mock-rpc";
-import { fromSdkBitmap, type FriendView, type MeRes } from "@pl/shared";
+import { fromSdkBitmap, playToDto, SEED_PACK, snapshotToDto, type FriendView, type MeRes } from "@pl/shared";
+import { createGamePreview, parseChanceGame, RF, type GameClient } from "@rarefriends/friendsdk/game";
 import { readGenerationEligibility } from "@rarefriends/friendsdk/identity";
 import { createPublicClient, getAddress, http, type Address, type Hex } from "viem";
 import { parseSiweMessage } from "viem/siwe";
 import { expect, test, walletControls } from "../fixtures/index.js";
 
+const SEED_PACK_CHILD = new URL("../../../apps/seed-pack/.friendsdk/game.html", import.meta.url);
+
 interface FakeServer {
   verified: Address | null;
   bound: string | null;
   refusals: number;
+  /** Seed-pack ledger ops served, in order (the ServerLedgerClient's traffic). */
+  seedpack: string[];
+}
+
+/** One persistent Seed Pack ledger per Friend, like the server's (the SDK preview ledger as the reference model). */
+const ledgers = new Map<string, GameClient>();
+function ledgerFor(tokenId: string): GameClient {
+  let l = ledgers.get(tokenId);
+  if (!l) {
+    l = createGamePreview(parseChanceGame(SEED_PACK), {
+      friendId: BigInt(tokenId),
+      stake: 1000n * RF,
+      rfBalance: 20n * RF,
+      draw: () => 42,
+    }).client;
+    ledgers.set(tokenId, l);
+  }
+  return l;
 }
 
 function friendView(tokenId: string): FriendView {
@@ -49,7 +71,7 @@ function friendView(tokenId: string): FriendView {
 async function fakeServer(page: Page, mockRpc: MockRpcServer): Promise<FakeServer> {
   const chain = createPublicClient({ transport: http(mockRpc.url) });
   const nonces = new Set<string>();
-  const state: FakeServer = { verified: null, bound: null, refusals: 0 };
+  const state: FakeServer = { verified: null, bound: null, refusals: 0, seedpack: [] };
   await page.route(
     (u) => u.pathname.startsWith("/api/"),
     async (route) => {
@@ -114,8 +136,23 @@ async function fakeServer(page: Page, mockRpc: MockRpcServer): Promise<FakeServe
         }
         case "POST /api/guest":
           return route.fulfill({ json: { guestId: "g-e2e" } });
-        default:
-          return fail(404, "not_found");
+        default: {
+          const op = /^POST \/api\/seedpack\/(\w+)$/.exec(key)?.[1];
+          if (!op) return fail(404, "not_found");
+          if (!state.bound) return fail(401, "unauthorized");
+          state.seedpack.push(op);
+          const l = ledgerFor(state.bound);
+          const b = body() as { quantity?: string; playId?: string; outcomeId?: number };
+          const q = b.quantity === undefined ? undefined : BigInt(b.quantity);
+          if (op === "read") return route.fulfill({ json: snapshotToDto(await l.read()) });
+          if (op === "canBuy") return route.fulfill({ json: { ok: await l.canBuy(q ?? 1n) } });
+          if (op === "buy") await l.buy(q ?? 1n);
+          else if (op === "play") return route.fulfill({ json: { plays: (await l.play(q)).map(playToDto) } });
+          else if (op === "settle") return route.fulfill({ json: playToDto(await l.settle(BigInt(b.playId ?? "0"))) });
+          else if (op === "redeem") await l.redeem(b.outcomeId ?? 1, q ?? 1n);
+          else return fail(404, "not_found");
+          return route.fulfill({ json: snapshotToDto(await l.read()) });
+        }
       }
     },
   );
@@ -199,5 +236,58 @@ test.describe("wallet", () => {
     // Account 1 owns nothing on the mock chain.
     await expect(page.getByTestId("no-friends")).toBeVisible();
     await expect.poll(() => server.bound).toBeNull();
+  });
+
+  test("the Seed Pack booth passes the SDK gate and persists packs in the server ledger across reloads", async ({
+    page,
+    mockRpc,
+  }) => {
+    test.skip(!existsSync(SEED_PACK_CHILD), "apps/seed-pack is not built (npm run build -w @pl/seed-pack)");
+    const server = await fakeServer(page, mockRpc);
+    await connect(page);
+    await page.getByTestId("pick-344030").click();
+    await expect(page.getByTestId("bound")).toBeVisible();
+
+    // In-app navigation keeps the wallet session: bound card → The Sky → the booth door.
+    await page.getByRole("link", { name: "enter the sky" }).click();
+    await page.getByRole("link", { name: "seed pack booth" }).click();
+    const frame = page.locator('iframe[src="/venues/seed-pack/game.html"]');
+    await expect(frame).toHaveCount(1, { timeout: 15_000 });
+    await expect.poll(() => server.seedpack.includes("read"), { timeout: 15_000 }).toBe(true);
+
+    // Buy one pack inside the sandboxed child; the trusted host asks for confirmation.
+    const child = page.frameLocator('iframe[src="/venues/seed-pack/game.html"]');
+    await child.getByRole("button", { name: /buy 1/i }).click();
+    await page.getByRole("button", { name: /confirm preview/i }).click();
+    await expect.poll(() => server.seedpack.includes("buy")).toBe(true);
+    expect((await ledgerFor("344030").read()).consumables).toBe(1n);
+
+    // Reload: the pack is still there because the ledger is the server's, not the SDK's session-local preview.
+    const before = server.seedpack.length;
+    await page.reload();
+    // A reload starts a new wallet session: the booth asks to reconnect, then the SDK gate runs again.
+    const reconnect = page.getByRole("button", { name: "connect wallet" });
+    await expect(reconnect.or(frame)).toBeVisible({ timeout: 15_000 });
+    if (await reconnect.isVisible()) await reconnect.click();
+    await expect(frame).toHaveCount(1, { timeout: 15_000 });
+    await expect.poll(() => server.seedpack.slice(before).includes("read"), { timeout: 15_000 }).toBe(true);
+    await expect(child.getByText(/1 pack|packs: 1|× ?1/i).first()).toBeVisible();
+  });
+
+  test("switching account mid-venue closes the SDK booth", async ({ page, mockRpc }) => {
+    test.skip(!existsSync(SEED_PACK_CHILD), "apps/seed-pack is not built (npm run build -w @pl/seed-pack)");
+    await fakeServer(page, mockRpc);
+    await connect(page);
+    await page.getByTestId("pick-344030").click();
+    await page.getByRole("link", { name: "enter the sky" }).click();
+    await page.getByRole("link", { name: "seed pack booth" }).click();
+    const frame = page.locator('iframe[src="/venues/seed-pack/game.html"]');
+    await expect(frame).toHaveCount(1, { timeout: 15_000 });
+    await walletControls.switchAccount(page, 1);
+    await expect(frame).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Owners only" })).toBeVisible();
+    // The flow re-ran discovery for the new account (which owns nothing); let it settle before teardown.
+    await page.getByRole("link", { name: "use my friend", exact: true }).click();
+    await expect(page.getByTestId("no-friends")).toBeVisible();
   });
 });
