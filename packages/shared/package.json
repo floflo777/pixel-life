@@ -10,6 +10,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@rarefriends/friendsdk": "file:../../vendor/rarefriends-friendsdk-0.1.4.tgz"
+  }
 }
