@@ -1,5 +1,5 @@
 /**
- * Behaviour of patches/@rarefriends+friendsdk+0.1.4.patch (`ConnectedGameHost.previewClient`).
+ * Behaviour of patches/@rarefriends+friendsdk+0.1.4.patch (`ConnectedGameHost.previewClient` and `previewLabel`).
  * Runs the real patched SDK runtime (dist) in happy-dom with a mock read client; no network.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -74,6 +74,7 @@ function render(props: Partial<ConnectedGameHostProps> & Pick<ConnectedGameHostP
   );
 }
 const iframe = () => container.querySelector("iframe");
+const modeLabel = () => container.querySelector(".rf-frame-mode")?.textContent;
 const text = () => container.textContent ?? "";
 
 describe("ConnectedGameHost previewClient patch", () => {
@@ -144,5 +145,24 @@ describe("ConnectedGameHost previewClient patch", () => {
     await vi.waitFor(() => expect(iframe()).not.toBeNull());
     expect(previewSpy).toHaveBeenCalledTimes(1);
     expect(previewSpy).toHaveBeenCalledWith(definition, { friendId: 7730n, stake: 450n * RF, rfBalance: 20n * RF });
+  });
+});
+
+describe("ConnectedGameHost previewLabel patch (#33)", () => {
+  const LABEL = "SIMULATED RF · saved on the server";
+
+  it("shows the host's label in preview mode, from the gate through the running session", async () => {
+    const factory = vi.fn<PreviewClientFactory>(serverLedger);
+    render({ publicClient: readClient().client, previewClient: factory, previewLabel: LABEL });
+    expect(modeLabel()).toBe(LABEL);
+    await vi.waitFor(() => expect(iframe()).not.toBeNull());
+    expect(modeLabel()).toBe(LABEL);
+    expect(text()).not.toContain("Local preview");
+  });
+
+  it("keeps the stock label when no label is given", async () => {
+    render({ publicClient: readClient().client });
+    await vi.waitFor(() => expect(iframe()).not.toBeNull());
+    expect(modeLabel()).toBe("Local preview");
   });
 });

@@ -101,6 +101,10 @@ chain / Friend / canonical wallet, with the verified canonical wallet address. W
 `createGamePreview` ledger is used (20 RF, reset on reload). The child needs no change either way: it only sees the
 fixed `GameClient`. See `tests/preview-client-patch.test.tsx`.
 
+The same patch adds an optional `previewLabel` string (threaded to `GameFrame`) that replaces the frame toolbar's
+stock "Local preview" in preview mode only. The shell passes a label saying the RF is SIMULATED and the ledger is kept on
+the server, since "Local preview" would claim nothing persists (issue #33). Live mode keeps "Live · Robinhood".
+
 ## Not implemented here
 
 - Live mode (real RF, Dice RNG). The component already handles a pending play (`settle` returning `outcomeId: null`) by
