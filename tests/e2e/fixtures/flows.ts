@@ -5,8 +5,20 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import type { MeRes } from "@pl/shared";
 import { REMOTE_URL } from "../env/stack.js";
 
-/** Longest a Loose Pixels run takes in real time (60 s of sim plus the end slow-mo, with headroom for slow CI). */
-export const RUN_TIMEOUT_MS = 100_000;
+/**
+ * Longest a Loose Pixels run takes in real time: 60 s of sim plus the end slow-mo. The sim advances at most 8 fixed
+ * steps per rendered frame, so on a CPU-starved runner (software WebGL, 2 workers) it runs slower than real time.
+ */
+export const RUN_TIMEOUT_MS = process.env["CI"] ? 180_000 : 100_000;
+
+/**
+ * "Play now" budget (GDD: a Friend on screen in under 3 s). Asserted as is locally and against a deployed build; CI's
+ * software-rendered, shared runners only get a loose ceiling (the measured time is attached to the report either way).
+ */
+export const PLAY_NOW_BUDGET_MS = process.env["CI"] && !REMOTE_URL ? 15_000 : 3_000;
+
+/** Desktop viewport for the long run specs: fewer pixels for SwiftShader to fill, same game. */
+export const RUN_VIEWPORT = { width: 960, height: 600 } as const;
 
 /** `/connect` → connect the injected wallet → pick `tokenId` → SIWE → bound. */
 export async function connectAndBind(page: Page, tokenId: string): Promise<void> {
@@ -81,5 +93,5 @@ export async function arriveInSky(page: Page, { live = true }: { live?: boolean 
   await expect(page.getByTestId("sky")).toBeVisible();
   // A deployed plaza rate-limits WebSocket joins per IP (6/min), which a whole suite from one runner exceeds.
   if (live && !REMOTE_URL)
-    await expect(page.getByTestId("sky")).toHaveAttribute("data-status", "online", { timeout: 15_000 });
+    await expect(page.getByTestId("sky")).toHaveAttribute("data-status", "online", { timeout: 30_000 });
 }

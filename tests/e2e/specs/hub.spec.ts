@@ -37,6 +37,8 @@ test.describe("the sky", () => {
 
   test("two players see each other arrive, move, emote, chat and leave", async ({ page, browser, chain }) => {
     test.skip(!!REMOTE_URL, "needs a private plaza");
+    // Two software-rendered skies at once: slow on shared CI runners.
+    test.setTimeout(120_000);
     const a = hubFrames(page);
     await arrive(page);
     await expect.poll(() => selfId(a)).not.toBeNull();

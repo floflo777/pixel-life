@@ -7,7 +7,16 @@
 import type { Page } from "@playwright/test";
 import { REMOTE_URL } from "../env/stack.js";
 import { expect, test, walletControls } from "../fixtures/index.js";
-import { hudPixels, noHorizontalOverflow, playRun, resultStat, runResults, RUN_TIMEOUT_MS } from "../fixtures/flows.js";
+import {
+  hudPixels,
+  PLAY_NOW_BUDGET_MS,
+  RUN_VIEWPORT,
+  noHorizontalOverflow,
+  playRun,
+  resultStat,
+  runResults,
+  RUN_TIMEOUT_MS,
+} from "../fixtures/flows.js";
 
 const stage = (page: Page) => page.locator('[data-testid="play"] .live-stage');
 
@@ -25,11 +34,13 @@ test.describe("guest", () => {
 
     const t0 = Date.now();
     await play.click();
-    await expect(stage(page)).toHaveAttribute("data-state", /live|fallback/, { timeout: 3000 });
-    await expect(page.getByTestId("hud-friend")).toContainText("on loan", { timeout: 3000 });
+    await expect(stage(page)).toHaveAttribute("data-state", /live|fallback/, {
+      timeout: PLAY_NOW_BUDGET_MS,
+    });
+    await expect(page.getByTestId("hud-friend")).toContainText("on loan", { timeout: PLAY_NOW_BUDGET_MS });
     const elapsed = Date.now() - t0;
-    expect(elapsed).toBeLessThan(3000);
     test.info().annotations.push({ type: "play-now-ms", description: String(elapsed) });
+    expect(elapsed).toBeLessThan(PLAY_NOW_BUDGET_MS);
 
     // No wallet wall: the guest path never asked the wallet for anything and never read the chain.
     expect(await walletControls.requests(page)).toEqual([]);
@@ -38,8 +49,10 @@ test.describe("guest", () => {
 
   test("a real run with drag-flings reaches results; the loaner's scars persist and the Sky is next", async ({
     page,
+    isMobile,
   }) => {
     test.setTimeout(RUN_TIMEOUT_MS + 60_000);
+    if (!isMobile) await page.setViewportSize(RUN_VIEWPORT);
     // Read-only against a deployed build: don't post bot runs to the public Visitors board.
     test.skip(!!REMOTE_URL, "posts a guest run");
     await page.goto("/");

@@ -7,7 +7,16 @@
 import type { Page } from "@playwright/test";
 import { popcount, type Hex64 } from "@pl/shared";
 import { getAddress } from "viem";
-import { connectAndBind, hudPixels, me, playRun, resultStat, runResults, RUN_TIMEOUT_MS } from "../fixtures/flows.js";
+import {
+  connectAndBind,
+  hudPixels,
+  RUN_VIEWPORT,
+  me,
+  playRun,
+  resultStat,
+  runResults,
+  RUN_TIMEOUT_MS,
+} from "../fixtures/flows.js";
 import { expect, test, walletControls } from "../fixtures/index.js";
 import { runVerification, seedPastRuns } from "../fixtures/seed.js";
 
@@ -67,8 +76,9 @@ test.describe("wallet", () => {
     expect(popcount(((await me(page)).friend?.pub.scars.lost ?? "0".repeat(64)) as Hex64)).toBe(0);
   });
 
-  test("a verified run leaves server-side scars that persist", async ({ page, friends }) => {
+  test("a verified run leaves server-side scars that persist", async ({ page, friends, isMobile }) => {
     test.setTimeout(RUN_TIMEOUT_MS + 60_000);
+    if (!isMobile) await page.setViewportSize(RUN_VIEWPORT);
     const tokenId = friends[0] as string;
     // Past the newbie runs, so this run's scars stick.
     await seedPastRuns(tokenId);
