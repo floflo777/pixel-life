@@ -1,10 +1,14 @@
 /* The Sky screen chrome over the hub stage (art bible §6–7: paper panels, ink keylines, hard shadows). */
 
 .sky .sky-fog {
+  right: auto;
+  max-width: min(420px, calc(100% - 16px));
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  border: 2px solid var(--ink);
+  box-shadow: var(--shadow-sm);
   z-index: 2;
 }
 

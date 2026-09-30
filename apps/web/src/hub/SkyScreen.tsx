@@ -184,7 +184,7 @@ function Sky() {
       {status.kind === "offline" && (
         <div className="notice sky-fog" role="status">
           <span>The sky is foggy: you're on your own island for now. Every door still works.</span>
-          <Button variant="paper" onClick={() => handle.current?.retry()}>
+          <Button variant="now" onClick={() => handle.current?.retry()}>
             retry
           </Button>
         </div>
