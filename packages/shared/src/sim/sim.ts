@@ -20,7 +20,7 @@ import * as T from "./tuning.js";
 import { World } from "./world.js";
 
 /** Version of the simulation rules; bump with every rule/tuning change that alters hashes. Mixed into every hash. */
-export const SIM_VERSION = 1;
+export const SIM_VERSION = 2;
 
 /** Hash of the complete world state (16 hex chars). Equal worlds hash equal; any divergence changes it. */
 export function hashWorld(w: World): string {
@@ -74,6 +74,16 @@ export function hashWorld(w: World): string {
   h.u32(f.kills);
   h.u32(f.hookTotal);
   h.u32(f.hookDone);
+  h.bool(f.kept);
+  h.u32(w.whiffAt);
+  h.u32(w.nextBiteId);
+  h.u32(w.openBites.length);
+  for (const ob of w.openBites) {
+    h.u32(ob.id);
+    h.u32(ob.left);
+    h.bool(ob.lost);
+    h.u32(ob.chain);
+  }
   h.u32(w.debris.length);
   for (const d of w.debris) {
     h.u32(d.pid);
@@ -89,6 +99,7 @@ export function hashWorld(w: World): string {
     h.u32(d.carriedBy);
     h.u32(d.claimedBy);
     h.u32((d.boosted ? 1 : 0) | (d.ponded ? 2 : 0));
+    h.u32(d.bite);
   }
   h.u32(w.creatures.length);
   h.u32(w.nextCreatureId);

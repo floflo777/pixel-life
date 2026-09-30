@@ -18,6 +18,15 @@ export const DT = 1 / 60;
 export const V_MAX = 70;
 /** Reference mass for launch scaling (pixels). */
 export const M_REF = 70;
+/**
+ * Momentum (mass × speed) a body of `mass` pixels needs to break something rated `hp` at the reference mass: a Gulp
+ * tooth or a Clank plate. Scaled by √(mass / M_REF) so that, within the launch mass-factor clamp, the launch speed
+ * needed is the same for every mass (a light Friend flings faster, so raw m·v would lock it out).
+ */
+export function smashThreshold(hp: number, mass: number): number {
+  return hp * Math.sqrt((mass < 1 ? 1 : mass) / M_REF);
+}
+
 /** Launch mass factor clamp: sqrt(M_REF/m) is clamped into [MASS_FACTOR_MIN, MASS_FACTOR_MAX]. */
 export const MASS_FACTOR_MIN = 0.8;
 /** See MASS_FACTOR_MIN. */
@@ -124,12 +133,19 @@ export const PTS_SURVIVAL = 300;
 export const PTS_FLAWLESS = 500;
 /** Combo multiplier cap (kills in one fling). */
 export const COMBO_CAP = 8;
-/** Chain multiplier in tenths: base, per-fling step and cap (×1.0, +0.1, ×2.0). */
+/** Chain multiplier in tenths: base, per-killing-fling step and cap (×1.0, +0.3, ×5.0; GDD ×1.0 / +0.1 / ×2.0). */
 export const CHAIN_BASE = 10;
 /** See CHAIN_BASE. */
-export const CHAIN_STEP = 1;
+export const CHAIN_STEP = 3;
 /** See CHAIN_BASE. */
-export const CHAIN_CAP = 20;
+export const CHAIN_CAP = 50;
+/**
+ * A fling with no pop is a whiff only if nothing useful follows within this grace after it stops FLYING: grabbing back a
+ * loose pixel or sweeping a crumb in that time (or during the fling, or knocking a tooth) holds the chain instead.
+ */
+export const WHIFF_GRACE = sec(0.5);
+/** Chain lost by a whiff, in tenths (a bite or a ring-out still resets it to CHAIN_BASE). */
+export const CHAIN_WHIFF = 6;
 
 // ── Spawning (GDD §3.9) ──────────────────────────────────────────────────────────────────────────────────────────────
 /** Spawn bank tick (budget is added every 0.25 s). */

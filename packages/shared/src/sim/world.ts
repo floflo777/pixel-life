@@ -78,6 +78,19 @@ export interface Debris {
   ponded: boolean;
   /** Marked for removal (grabbed or lost this tick). */
   gone: boolean;
+  /** Id of the bite that knocked it off (perfect-sweep bookkeeping). */
+  bite: number;
+}
+
+/** A bite whose loose pixels are still out (perfect-sweep bookkeeping, GDD §2.9 balance pass). */
+export interface OpenBite {
+  id: number;
+  /** Loose pixels of this bite not yet grabbed back or lost. */
+  left: number;
+  /** At least one of its pixels was lost: no perfect sweep. */
+  lost: boolean;
+  /** Chain (tenths) the bite broke; a perfect sweep wins back half of what it lost. */
+  chain: number;
 }
 
 /** A star crumb popped out of a Gulp tooth (+20 when swept). */
@@ -105,6 +118,8 @@ interface Fling {
   trail: boolean;
   hookTotal: number;
   hookDone: number;
+  /** The fling did something useful without a kill (grab-back, crumb, tooth): it holds the chain instead of whiffing. */
+  kept: boolean;
 }
 
 const RS_NONE = 0;
@@ -183,7 +198,13 @@ export class World {
     trail: false,
     hookTotal: 0,
     hookDone: 0,
+    kept: false,
   };
+  /** Tick at which a pending whiff resets the chain (−1 = none pending), see WHIFF_GRACE. */
+  whiffAt = -1;
+  /** Bites whose loose pixels are still out, oldest first. */
+  openBites: OpenBite[] = [];
+  nextBiteId = 1;
 
   debris: Debris[] = [];
   creatures: Creature[] = [];
@@ -309,6 +330,7 @@ export class World {
     if (this.ringState !== RS_NONE || pow < T.MIN_POW || this.tick < this.cooldownUntil) return;
     for (const b of this.bodies) if (this.speed(b) >= T.READY_THRESHOLD) return;
     if (this.fling.active) this.endFling();
+    if (this.whiffAt >= 0) this.resolveWhiff();
     this.lastFlingTick = this.tick;
     this.lastFlingPow = pow;
     this.cooldownUntil = this.tick + T.LAUNCH_COOLDOWN;
@@ -330,6 +352,7 @@ export class World {
     f.active = true;
     f.start = this.tick;
     f.kills = 0;
+    f.kept = false;
     f.pow = pow;
     f.ang = ang;
     f.quake = this.traits.quake && pow >= T.QUAKE_MIN_POW;
@@ -461,6 +484,8 @@ export class World {
     if (picked.length === 0) return 0;
     const shape = b.shape;
     const baseAng = angleOf(ax, az);
+    const biteId = this.nextBiteId++;
+    this.openBites.push({ id: biteId, left: picked.length, lost: false, chain: this.chain });
     for (const pid of picked) {
       this.pixels.slot[pid] = SLOT_LOOSE;
       const col = pid & 15;
@@ -484,6 +509,7 @@ export class World {
         boosted: false,
         ponded: false,
         gone: false,
+        bite: biteId,
       };
       this.debris.push(d);
       this.pixelsOff++;
@@ -494,6 +520,7 @@ export class World {
     b.vx += (ax * j) / m;
     b.vz += (az * j) / m;
     this.bitesTaken++;
+    this.whiffAt = -1;
     if (this.chain !== T.CHAIN_BASE) {
       this.chain = T.CHAIN_BASE;
       this.emit("chain", this.chain, 0, b.x, b.z);
@@ -518,7 +545,21 @@ export class World {
   loseDebris(d: Debris, reason: number): void {
     if (d.gone) return;
     d.gone = true;
+    const ob = this.settleBite(d.bite);
+    if (ob) ob.lost = true;
     this.losePixel(d.pid, reason, d.x, d.z);
+  }
+
+  /** One loose pixel of bite `id` is resolved (grabbed or lost): returns its record, dropped once nothing is left. */
+  private settleBite(id: number): OpenBite | undefined {
+    for (let i = 0; i < this.openBites.length; i++) {
+      const ob = this.openBites[i];
+      if (!ob || ob.id !== id) continue;
+      ob.left--;
+      if (ob.left <= 0) this.openBites.splice(i, 1);
+      return ob;
+    }
+    return undefined;
   }
 
   private grabDebris(d: Debris, bi: number): void {
@@ -528,7 +569,19 @@ export class World {
     this.recovered++;
     const clutch = d.left <= T.CLUTCH_LEFT;
     this.score += clutch ? T.PTS_CLUTCH : T.PTS_GRAB;
-    this.emit("pixelBack", d.pid, clutch ? 1 : 0, this.body(bi).x, this.body(bi).z);
+    this.keepChain();
+    const b = this.body(bi);
+    this.emit("pixelBack", d.pid, clutch ? 1 : 0, b.x, b.z);
+    const ob = this.settleBite(d.bite);
+    if (ob && ob.left <= 0 && !ob.lost) {
+      // Perfect sweep: the whole bite came home, so half of the chain the bite broke comes back. No extra points (a
+      // bonus here paid novices for being bitten) and not the whole chain (novices are bitten, and sweep, far more).
+      const back = Math.floor((ob.chain + T.CHAIN_BASE) / 2);
+      if (back > this.chain) {
+        this.chain = back;
+        this.emit("chain", this.chain, 0, b.x, b.z);
+      }
+    }
   }
 
   // ── Scoring ───────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -557,7 +610,11 @@ export class World {
     this.score = Math.max(0, this.score + p);
   }
 
-  /** Ends the current fling: Quake stomp, then the chain rule (≥ 1 kill: +0.1; whiff: reset). */
+  /**
+   * Ends the current fling: Quake stomp, then the chain rule (≥ 1 kill: +CHAIN_STEP; a fling that grabbed back a pixel,
+   * swept a crumb or knocked a tooth holds the chain; otherwise it is a whiff costing CHAIN_WHIFF, unless a grab-back or
+   * crumb follows within WHIFF_GRACE).
+   */
   endFling(): void {
     const f = this.fling;
     if (!f.active) return;
@@ -565,10 +622,24 @@ export class World {
     f.active = false;
     const prev = this.chain;
     if (f.kills > 0) this.chain = Math.min(T.CHAIN_CAP, this.chain + T.CHAIN_STEP);
-    else this.chain = T.CHAIN_BASE;
+    else if (!f.kept) this.whiffAt = this.tick + T.WHIFF_GRACE;
     if (this.chain !== prev) this.emit("chain", this.chain, f.kills, this.body(0).x, this.body(0).z);
     this.combo = 0;
     f.hookTotal = 0;
+  }
+
+  /** Something useful happened (grab-back, crumb, tooth): the current fling, or a pending whiff, holds the chain. */
+  keepChain(): void {
+    if (this.fling.active) this.fling.kept = true;
+    else this.whiffAt = -1;
+  }
+
+  /** A whiff's grace ran out (or a new fling started first): the chain drops by CHAIN_WHIFF (not below ×1.0). */
+  private resolveWhiff(): void {
+    this.whiffAt = -1;
+    if (this.chain === T.CHAIN_BASE) return;
+    this.chain = Math.max(T.CHAIN_BASE, this.chain - T.CHAIN_WHIFF);
+    this.emit("chain", this.chain, 0, this.body(0).x, this.body(0).z);
   }
 
   private quake(): void {
@@ -610,6 +681,7 @@ export class World {
       for (const b of this.bodies) if (this.speed(b) >= T.FLY_THRESHOLD) stopped = false;
       if (stopped || this.ringState !== RS_NONE) this.endFling();
     }
+    if (this.whiffAt >= 0 && this.tick >= this.whiffAt) this.resolveWhiff();
     this.compact();
     this.tick++;
     if (this.lostRun > 0 && (this.pixels.startPresent - this.lostRun) * 2 <= this.pixels.n0) this.endRun(END_CRUMBLE);
@@ -855,6 +927,7 @@ export class World {
     this.ringouts++;
     this.addScore(T.PTS_RINGOUT);
     if (this.fling.active) this.endFling();
+    this.whiffAt = -1;
     if (this.chain !== T.CHAIN_BASE) {
       this.chain = T.CHAIN_BASE;
       this.emit("chain", this.chain, 0, b.x, b.z);
@@ -1029,6 +1102,7 @@ export class World {
       }
       if (taken) {
         this.score += T.PTS_CRUMB;
+        this.keepChain();
         this.emit("crumb", T.PTS_CRUMB, 0, c.x, c.z);
       } else if (c.left > 0) keep.push(c);
     }

@@ -121,11 +121,16 @@ export class GulpState {
       const dz = b.z - t.z;
       if (dx * dx + dz * dz >= rr * rr) continue;
       const sp = w.speed(b);
-      if (this.lit === i && sp >= T.FLY_THRESHOLD && b.shape.count * sp >= T.TOOTH_HP) {
+      if (
+        this.lit === i &&
+        sp >= T.FLY_THRESHOLD &&
+        b.shape.count * sp >= T.smashThreshold(T.TOOTH_HP, b.shape.count)
+      ) {
         t.hit = true;
         this.teethHit++;
         this.lit = -1;
         w.score += T.PTS_TOOTH;
+        w.keepChain();
         w.emit("gulp", GULP_EV_TOOTH_HIT, i, t.x, t.z);
         this.spawnCrumbs(w, t);
         // The tooth pops out but the Friend still rebounds off Gulp's jaw (otherwise every hit would be a ring-out).
