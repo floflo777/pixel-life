@@ -1,0 +1,62 @@
+{
+  "hub-high": {
+    "tier": "high",
+    "sceneCalls": 22,
+    "sceneTriangles": 23810,
+    "maskCalls": 10,
+    "totalCalls": 34,
+    "internalWidth": 640,
+    "internalHeight": 360,
+    "sceneTrianglesBuilt": 23726
+  },
+  "hub-medium": {
+    "tier": "medium",
+    "sceneCalls": 22,
+    "sceneTriangles": 23810,
+    "maskCalls": 10,
+    "totalCalls": 34,
+    "internalWidth": 640,
+    "internalHeight": 360,
+    "sceneTrianglesBuilt": 23726
+  },
+  "hub-low": {
+    "tier": "low",
+    "sceneCalls": 22,
+    "sceneTriangles": 23810,
+    "maskCalls": 10,
+    "totalCalls": 34,
+    "internalWidth": 427,
+    "internalHeight": 240,
+    "sceneTrianglesBuilt": 23726
+  },
+  "hub-burst": {
+    "tier": "high",
+    "sceneCalls": 22,
+    "sceneTriangles": 23810,
+    "maskCalls": 10,
+    "totalCalls": 34,
+    "internalWidth": 640,
+    "internalHeight": 360,
+    "sceneTrianglesBuilt": 23726
+  },
+  "hub-impact": {
+    "tier": "high",
+    "sceneCalls": 22,
+    "sceneTriangles": 23810,
+    "maskCalls": 10,
+    "totalCalls": 34,
+    "internalWidth": 640,
+    "internalHeight": 360,
+    "sceneTrianglesBuilt": 23726
+  },
+  "phone-portrait": {
+    "tier": "medium",
+    "sceneCalls": 19,
+    "sceneTriangles": 20024,
+    "maskCalls": 9,
+    "totalCalls": 30,
+    "internalWidth": 180,
+    "internalHeight": 320,
+    "sceneTrianglesBuilt": 23726
+  }
+}
