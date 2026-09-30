@@ -6,6 +6,7 @@ import type { AppContext } from "./context.js";
 import { createDb, type Db } from "./db/pool.js";
 import { createFriendViews } from "./friends/view.js";
 import { HttpError, registerErrorHandling } from "./http/errors.js";
+import { marketRoutes } from "./market/routes.js";
 import { UNGUARDED_PATHS, clientIpFrom, originAllowed, originKeyMatches } from "./http/guards.js";
 import { createRepos } from "./repos/index.js";
 import { registerAuthRoutes } from "./routes/auth.js";
@@ -113,6 +114,7 @@ export async function buildApp(config: ServerConfig, deps: AppDeps = {}): Promis
   registerErrorHandling(app);
   registerHealthRoutes(app, ctx);
   registerAuthRoutes(app, ctx);
+  await app.register(marketRoutes, { ctx });
 
   const ws = attachWebSocket(app.server, ctx, app.log);
 
