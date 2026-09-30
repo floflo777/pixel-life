@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { designWorld, startMockRpc, type MockRpcServer, type WorldSpec } from "@pl/mock-rpc";
@@ -19,6 +20,12 @@ import { createDb, type Db } from "../db/pool.js";
 export const MIGRATIONS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../migrations");
 export const ORIGIN = "https://pixel-life.test.workers.dev";
 export const ORIGIN_KEY = "k".repeat(40);
+/** Newest migration file this build ships (readiness tests). */
+export const LATEST_MIGRATION =
+  readdirSync(MIGRATIONS_DIR)
+    .filter((f) => /^\d{4}_[a-z0-9_]+\.sql$/.test(f))
+    .sort()
+    .at(-1) ?? "0001_init.sql";
 
 /** A fresh, migrated database on the shared test cluster. `drop()` removes it. */
 export async function createTestDatabase(): Promise<{ db: Db; url: string; drop: () => Promise<void> }> {
