@@ -5,3 +5,5 @@ vendor
 docs/design
 *.tgz
 package-lock.json
+contracts/out
+contracts/cache

@@ -1,0 +1,37 @@
+# Mirrors the FriendSDK 0.1.4 contracts profile. OpenZeppelin and forge-std come from the
+# SDK's vendored, hash-pinned copies (see its lib/provenance.json): run `npm ci` at the
+# repository root first.
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = ["../node_modules/@rarefriends/friendsdk/contracts/lib"]
+allow_paths = ["../node_modules/@rarefriends/friendsdk/contracts/lib"]
+remappings = [
+    "forge-std/=../node_modules/@rarefriends/friendsdk/contracts/lib/forge-std/src/",
+    "@openzeppelin/contracts/=../node_modules/@rarefriends/friendsdk/contracts/lib/openzeppelin-contracts/contracts/",
+]
+solc_version = "0.8.36"
+auto_detect_solc = false
+optimizer = true
+optimizer_runs = 200
+evm_version = "cancun"
+bytecode_hash = "none"
+cbor_metadata = false
+
+[fuzz]
+runs = 1024
+
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = true
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+wrap_comments = true
+
+[lint]
+# House style (FriendSDK ChanceGame) keeps immutables in mixedCase as public getters.
+exclude_lints = ["screaming-snake-case-immutable"]

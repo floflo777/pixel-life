@@ -18,3 +18,19 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # OpenZeppelin and forge-std come from the vendored FriendSDK package.
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+      - working-directory: contracts
+        run: |
+          forge fmt --check
+          forge build
+          forge test
