@@ -11,18 +11,22 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@pl/game": "*",
     "@pl/shared": "*",
     "@pl/venue-kit": "*",
-    "@pl/game": "*",
     "@rarefriends/friendsdk": "file:../../vendor/rarefriends-friendsdk-0.1.4.tgz",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "viem": "2.56.3"
   },
   "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "happy-dom": "^20.14.5",
     "vite": "^8.3.1"
   }
 }
