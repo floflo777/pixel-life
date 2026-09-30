@@ -319,7 +319,14 @@ describe("replay verification", () => {
       const inputs = [{ t: 30, k: 0, ang: 1024, pow: 800 }];
       const claimed = api["replay"]?.(config, inputs) as RunSubmitReq["claimed"];
       const b64 = Buffer.from(api["encodeInputs"]?.(inputs) as Uint8Array).toString("base64");
-      expect((await pool.verify({ config: config as never, inputs: b64, claimed })).status).toBe("ok");
+      const verified = await pool.verify({ config: config as never, inputs: b64, claimed });
+      expect(verified.status).toBe("ok");
+      // The verified run is tallied for stamps and belts by a second, event-recording pass in the worker.
+      expect(verified.status === "ok" ? verified.tally : undefined).toMatchObject({
+        grabbedBack: expect.any(Number),
+        maxCombo: expect.any(Number),
+        gulpBurped: expect.any(Boolean),
+      });
       const tampered = { ...claimed, score: claimed.score + 1 };
       expect((await pool.verify({ config: config as never, inputs: b64, claimed: tampered })).status).toBe("mismatch");
       await pool.close();

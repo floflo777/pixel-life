@@ -54,6 +54,8 @@ export interface FriendsTable {
   streak_day: DayColumn | null;
   sim_rf_micro: Defaulted<number>;
   sim_granted_day: DayColumn | null;
+  /** When the Friend last became whole (migrations/0012), null while scarred or never observed. */
+  whole_since: Defaulted<Date | null>;
   last_seen: Date;
   created_at: Date;
 }
@@ -78,6 +80,8 @@ export interface RunsTable {
   bits: Defaulted<number>;
   verified_at: Defaulted<Date | null>;
   replay_hash: Defaulted<string | null>;
+  /** Belt trial the run claims (migrations/0012). */
+  belt_trial: Defaulted<string | null>;
 }
 
 export interface DailyBestTable {
@@ -180,6 +184,15 @@ export interface BitsAccountsTable {
   updated_at: Date;
 }
 
+/** Bits per account, per unverified venue, per UTC day (migrations/0012). */
+export interface BitsVenueDaysTable {
+  account: string;
+  venue_id: string;
+  day: DayColumn;
+  runs: Defaulted<number>;
+  earned: Defaulted<number>;
+}
+
 /** The whole database, as Kysely sees it. */
 export interface Database {
   auth_nonces: AuthNoncesTable;
@@ -198,4 +211,5 @@ export interface Database {
   economy_quotes: EconomyQuotesTable;
   stitches: StitchesTable;
   bits_accounts: BitsAccountsTable;
+  bits_venue_days: BitsVenueDaysTable;
 }

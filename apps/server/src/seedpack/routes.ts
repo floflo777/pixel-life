@@ -19,6 +19,9 @@ import { activeLocks, casWriteScars, readFriend, storedScars } from "../game/sta
 import { grantDailySim } from "../game/wallet.js";
 import { HttpError, validated } from "../http/errors.js";
 import { enforceRateLimit } from "../http/guards.js";
+import { reconcileHeldLeaves } from "../market/store.js";
+import { withMarket } from "../market/tables.js";
+import { onGoldKept } from "../meta/hooks.js";
 import type { Executor } from "../repos/index.js";
 import {
   LedgerError,
@@ -265,6 +268,15 @@ export function registerSeedPackRoutes(app: FastifyInstance, ctx: AppContext): v
         }
       }
       await save(trx, tokenId, before, out.state, now, out.settled);
+      if (goldAfter < goldBefore) {
+        // Golds redeemed through the Seed Pack leave the market too: bought leaves beyond the new count are retired
+        // (market lock order: leaves come after seedpack_friend, which `load` already holds).
+        await reconcileHeldLeaves(withMarket(trx), tokenId, goldAfter, now);
+      }
+      if (out.settled?.outcomeId === GOLD_PIXEL_OUTCOME_ID) {
+        // A Gold grown from a pack stays on the Friend unless redeemed: the "Gold Keeper" stamp (GDD §12.5).
+        await onGoldKept(trx, tokenId, now);
+      }
       return { out, goldBefore, goldAfter, hash };
     });
     if (done.goldAfter !== done.goldBefore) {

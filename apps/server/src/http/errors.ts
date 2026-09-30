@@ -43,7 +43,13 @@ export type ErrorReason =
   | "insufficient_inventory"
   | "unknown_outcome"
   | "no_redemption_value"
-  | "invalid_quantity";
+  | "invalid_quantity"
+  // ── wave 4: venues, belt trials, guest kill switch ──
+  | "unknown_venue"
+  | "bad_kind"
+  | "bad_trial"
+  | "venue_daily_limit"
+  | "guest_mode_off";
 
 /** Error body of every non-2xx response: the shared `ApiError` plus `reason` and the request id. */
 export interface ErrorBody extends ApiError {

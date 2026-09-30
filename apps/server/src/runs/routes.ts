@@ -1,7 +1,11 @@
 import { randomBytes } from "node:crypto";
 import {
   BITS,
+  BITS_ONLY_VENUES,
   EMPTY_MASK,
+  beltDef,
+  beltTrialSeed,
+  isRunVenue,
   and,
   andNot,
   applyLoss,
@@ -30,7 +34,8 @@ import { readGuest, readSession } from "../auth/session.js";
 import type { AppContext } from "../context.js";
 import { dailySeed, nextStreak, utcDay } from "../game/daily.js";
 import { activeLocks, casWriteScars, goldHeldOf, readFriend, storedScars } from "../game/state.js";
-import { creditRunBits } from "../game/wallet.js";
+import { creditRunBits, creditVenueBits } from "../game/wallet.js";
+import { breakWhole, observeWhole } from "../game/whole.js";
 import { HttpError, validated } from "../http/errors.js";
 import { enforceRateLimit } from "../http/guards.js";
 import type { Executor } from "../repos/index.js";
@@ -77,7 +82,8 @@ async function resolveEntrant(ctx: AppContext, headers: Parameters<typeof readSe
       return { kind: "owner", tokenId: fresh.tokenId, address: fresh.address, key: `token:${fresh.tokenId}` };
     }
   }
-  const guest = readGuest(ctx, headers);
+  // D-15 kill switch: with GUEST_MODE=off an old guest cookie is simply not an identity any more.
+  const guest = ctx.config.guestMode ? readGuest(ctx, headers) : null;
   if (guest) return { kind: "guest", guestId: guest.guestId, key: `guest:${guest.guestId}` };
   if (session) throw new HttpError(403, "forbidden", "Pick one of your Friends first.", { reason: "no_binding" });
   throw new HttpError(401, "unauthorized", "Sign in or start as a guest first.");
@@ -181,8 +187,11 @@ async function submitOwnerRun(
         venue_id: body.venueId,
         sim_friend: JSON.stringify(simFriend),
         applied_lost: applied,
+        belt_trial: body.beltTrial ?? null,
       })
       .execute();
+    // New scars break the whole streak (it restarts the next time the Friend is seen whole).
+    if (applied !== null && applied !== EMPTY_MASK) await breakWhole(trx, tokenId);
 
     const row = await readFriend(trx, tokenId, true);
     if (body.kind === "daily" && row && row.streak_day !== today) {
@@ -214,12 +223,91 @@ async function submitOwnerRun(
   });
 }
 
+/**
+ * Checks the venue and the venue-specific rules of a submission; returns true for a Bits-only venue.
+ * Scar venues (`SCAR_VENUES`) take any kind and may claim a belt trial; Bits-only venues take free runs only.
+ */
+function checkVenue(body: RunSubmitReq): boolean {
+  if (!isRunVenue(body.venueId)) {
+    throw new HttpError(400, "bad_request", "Runs from that venue are not accepted.", { reason: "unknown_venue" });
+  }
+  const bitsOnly = (BITS_ONLY_VENUES as readonly string[]).includes(body.venueId);
+  if (bitsOnly && (body.kind !== "free" || body.beltTrial !== undefined)) {
+    throw new HttpError(400, "bad_request", "Only free runs count for this venue.", { reason: "bad_kind" });
+  }
+  if (body.beltTrial !== undefined) {
+    const belt = beltDef(body.beltTrial);
+    const island = belt?.requirement.island;
+    if (
+      !belt?.trial ||
+      body.kind !== "free" ||
+      body.seed !== beltTrialSeed(belt.id) ||
+      (island !== undefined && (body.arena ?? DEFAULT_ARENA) !== island)
+    ) {
+      throw new HttpError(400, "bad_request", "That is not a belt trial run.", { reason: "bad_trial" });
+    }
+  }
+  return bitsOnly;
+}
+
+/**
+ * Owner submission for a venue whose runs are not replayed yet (`BITS_ONLY_VENUES`): stores the run (never replayed,
+ * so it stays `pending`; no scars, stamps, belts or boards) and credits base Bits under the venue's own daily cap and
+ * the shared cap. A 61st run of the day for that venue is refused (`venue_daily_limit`).
+ */
+async function submitBitsOnlyRun(
+  ctx: AppContext,
+  entrant: Extract<Entrant, { kind: "owner" }>,
+  body: RunSubmitReq,
+  inputs: Buffer,
+  runId: string,
+): Promise<RunAck> {
+  const now = ctx.now();
+  const today = utcDay(now);
+  return ctx.db.kysely.transaction().execute(async (trx) => {
+    const credit = await creditVenueBits(trx, entrant.address, body.venueId, today, now);
+    if (!credit) {
+      throw new HttpError(429, "rate_limited", "That's enough of this game for today.", {
+        reason: "venue_daily_limit",
+      });
+    }
+    await trx
+      .insertInto("runs")
+      .values({
+        id: runId,
+        token_id: entrant.tokenId,
+        guest_id: null,
+        kind: "free",
+        day: null,
+        seed: body.seed,
+        inputs,
+        score: body.claimed.score,
+        lost_delta: EMPTY_MASK,
+        final_hash: body.claimed.finalHash,
+        created_at: now,
+        arena: body.arena ?? DEFAULT_ARENA,
+        venue_id: body.venueId,
+        sim_friend: null,
+        bits: credit.credited,
+      })
+      .execute();
+    await trx
+      .updateTable("friends")
+      .set({ last_seen: sql<Date>`GREATEST(last_seen, ${now})` })
+      .where("token_id", "=", entrant.tokenId)
+      .execute();
+    return { runId, verified: "pending", applied: false, reason: "no_scars", scars: null, bits: credit.credited };
+  });
+}
+
 /** Registers `POST /api/runs` (architecture §4.3, §4.5, §4.6). */
 export function registerRunRoutes(app: FastifyInstance, ctx: AppContext): void {
   app.post("/api/runs", async (request): Promise<RunAck> => {
     const entrant = await resolveEntrant(ctx, request.headers);
     enforceRateLimit(ctx.limiters.writes, entrant.kind === "owner" ? `addr:${entrant.address}` : entrant.key);
     const body = validated("POST /api/runs", request.body);
+
+    const bitsOnly = checkVenue(body);
 
     const inputs = Buffer.from(body.inputs, "base64");
     if (inputs.length > MAX_INPUT_BYTES) {
@@ -247,7 +335,8 @@ export function registerRunRoutes(app: FastifyInstance, ctx: AppContext): void {
         throw new HttpError(429, "rate_limited", "That's today's last Daily attempt.", { reason: "daily_limit" });
       }
     }
-    const cooldown = ctx.limiters.runSubmit.take(entrant.key);
+    // Unverified venues have their own cooldown lane, so a Sumo round never blocks the next Loose Pixels run.
+    const cooldown = ctx.limiters.runSubmit.take(bitsOnly ? `${entrant.key}:${body.venueId}` : entrant.key);
     if (!cooldown.ok) {
       throw new HttpError(429, "rate_limited", "One run at a time.", {
         reason: "run_cooldown",
@@ -256,6 +345,11 @@ export function registerRunRoutes(app: FastifyInstance, ctx: AppContext): void {
     }
 
     const runId = newRunId();
+    if (bitsOnly && entrant.kind === "owner") {
+      const ack = await submitBitsOnlyRun(ctx, entrant, body, inputs, runId);
+      request.log.info({ runId, tokenId: entrant.tokenId, venue: body.venueId, bits: ack.bits }, "venue run stored");
+      return ack;
+    }
     if (entrant.kind === "guest") {
       await ctx.db.kysely.transaction().execute(async (trx) => {
         await trx
@@ -283,6 +377,11 @@ export function registerRunRoutes(app: FastifyInstance, ctx: AppContext): void {
       // Guests' scars live in localStorage (D-11) and their runs are not replayed (no server Friend to replay against).
       return { runId, verified: "pending", applied: false, reason: "guest", scars: null };
     }
+
+    // Credit the whole streak up to now before this run can break it (best effort: never blocks the run).
+    await observeWhole(ctx.db.kysely, entrant.tokenId, now).catch((error: unknown) =>
+      request.log.warn({ err: error, tokenId: entrant.tokenId }, "whole streak check failed"),
+    );
 
     const { applied_lost: appliedLost, ...ack } = await submitOwnerRun(ctx, entrant, body, inputs, runId);
     request.log.info({ runId, tokenId: entrant.tokenId, kind: body.kind, applied: ack.applied }, "run stored");

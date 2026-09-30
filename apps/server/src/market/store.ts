@@ -1,6 +1,5 @@
 import { randomBytes } from "node:crypto";
 import {
-  ECON,
   GOLD_PIXEL_OUTCOME_ID,
   MARKET,
   SEED_PACK,
@@ -17,6 +16,8 @@ import {
 } from "@pl/shared";
 import { sql, type Selectable } from "kysely";
 import type { Json } from "../db/schema.js";
+import { utcDay } from "../game/daily.js";
+import { grantDailySim } from "../game/wallet.js";
 import { MarketError } from "./errors.js";
 import type { MarketEventsTable, MarketExecutor } from "./tables.js";
 
@@ -135,20 +136,6 @@ async function lockFriends(db: MarketExecutor, ids: readonly TokenIdStr[]): Prom
     }
   }
   return out;
-}
-
-/**
- * Credits the simulated daily grant once per UTC day, lazily (the same single conditional UPDATE the rest of the
- * server uses, so running it from here can never grant twice).
- */
-async function grantDailySim(db: MarketExecutor, tokenId: TokenIdStr, now: Date): Promise<void> {
-  const today = now.toISOString().slice(0, 10);
-  await db
-    .updateTable("friends")
-    .set({ sim_rf_micro: sql<number>`sim_rf_micro + ${ECON.simDailyGrantMicro}`, sim_granted_day: today })
-    .where("token_id", "=", tokenId)
-    .where((eb) => eb.or([eb("sim_granted_day", "is", null), eb("sim_granted_day", "<", today)]))
-    .execute();
 }
 
 /**
@@ -396,7 +383,7 @@ export async function buyGold(
   // Lock every party in token order first; the daily grant then updates an already-locked row (no lock-order cycle).
   const friends = await lockFriends(db, [buyer, seller, origin]);
   if (!friends.has(buyer)) throw new MarketError("no_friend", "Open your Friend once before trading.");
-  await grantDailySim(db, buyer, now);
+  await grantDailySim(db, buyer, utcDay(now));
 
   const debited = await db
     .updateTable("friends")

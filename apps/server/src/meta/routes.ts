@@ -34,7 +34,8 @@ import { HttpError } from "../http/errors.js";
 import { enforceRateLimit } from "../http/guards.js";
 import type { FriendBinding } from "../repos/index.js";
 import { heldStamps, passedBelts, readStats, recordMetaEvent } from "./hooks.js";
-import { bitsBalance, debitBits, homeView, lockIsle, ownedItems, writeIsle } from "./store.js";
+import { bitsBalance, debitBits } from "../game/wallet.js";
+import { homeView, lockIsle, ownedItems, writeIsle } from "./store.js";
 import { metaDb } from "./tables.js";
 
 /** Most copies of one item an owner can hold. */

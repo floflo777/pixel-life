@@ -42,6 +42,11 @@ export interface ServerConfig {
   readonly seedpackStakeMicro: number;
   /** Replay-verification worker threads (0 disables verification: runs stay `pending`). */
   readonly replayWorkers: number;
+  /**
+   * Guest-mode kill switch (D-15, `GUEST_MODE=on|off`, default on). Off: `POST /api/guest` answers 403
+   * `guest_forbidden` and existing guest cookies stop counting as an identity for runs.
+   */
+  readonly guestMode: boolean;
 }
 
 /** One problem found while validating the environment. */
@@ -175,6 +180,7 @@ export function loadConfig(env: Env): ServerConfig {
     liveConfirmations: int("LIVE_CONFIRMATIONS", 3, 0, 1000),
     seedpackStakeMicro: int("SEEDPACK_STAKE_RF", 10_000, 0, 1_000_000_000) * 1_000_000,
     replayWorkers: int("REPLAY_WORKERS", 2, 0, 32),
+    guestMode: oneOf("GUEST_MODE", ["on", "off"] as const, "on") === "on",
   };
   if (production && !config.cookieSecure) fail("COOKIE_SECURE", "must be true in production");
   if (issues.length > 0) throw new ConfigError(issues);
