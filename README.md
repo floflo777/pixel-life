@@ -2,7 +2,9 @@
 
 A Rare Friends social world where **your Friend's pixels are its life**: every hit knocks a pixel off your Friend — grab it back, or regrow it. A Club Penguin-like hub of mini-game venues, with Pixel Life (the fling arcade) as the flagship.
 
-Status: in development. Design documents live in [`docs/design`](docs/design).
+Status: in development. Design documents live in [`docs/design`](docs/design). Vibeathon submission drafts (README, trailer plan, judges' FAQ) live in [`docs/submission`](docs/submission).
+
+Playable preview: https://pixel-life.florent-g.workers.dev · Every RF amount in the preview is simulated; the contracts in [`contracts/`](contracts) are tested but not deployed.
 
 ## Layout
 
@@ -27,4 +29,4 @@ Node 22+. See [CONTRIBUTING.md](CONTRIBUTING.md) for the team workflow.
 
 ## Credits
 
-Rare Friends artwork via FriendSDK (Apache-2.0, see its NOTICE). Kenney 1-Bit Pack (CC0).
+Rare Friends artwork via FriendSDK (Apache-2.0, see its NOTICE). Kenney 1-Bit Pack (CC0). Silkscreen font (SIL OFL 1.1).
