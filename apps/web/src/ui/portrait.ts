@@ -111,8 +111,8 @@ export interface PaintOptions {
 
 /**
  * Paints `layers` into `ctx` at `geo`: keyline + halo (the body mask dilated, scars count as body so the silhouette
- * stays whole), then cells. Scar = paper + coral dotted rim; heal-next = scar + centred ink dot; selected = scar +
- * centred ink block (the "healing" look, previewing the fill); gold = gold + near-white spec; stitch = ink + coral ring.
+ * stays whole), then cells. Scar = paper + coral dotted rim; heal-next = scar + centred ink dot; selected = paper +
+ * solid coral rim + centred ink block (the "healing" look, previewing the fill); gold = gold + near-white spec; stitch = ink + coral ring.
  */
 export function paintPortrait(ctx: Paint2D, layers: PortraitLayers, geo: PortraitGeometry, opts: PaintOptions): void {
   const { scale: s, margin: m, halo, keyline } = geo;
@@ -146,6 +146,13 @@ export function paintPortrait(ctx: Paint2D, layers: PortraitLayers, geo: Portrai
         ctx.fillRect(x + s - dot, y + d, dot, dot);
       }
       if (getBit(opts.selected, i)) {
+        // Selected = about to be filled: a solid coral rim (dotted = waiting) around a centred ink block.
+        const r = Math.max(1, dot);
+        ctx.fillStyle = COLORS.coral;
+        ctx.fillRect(x, y, s, r);
+        ctx.fillRect(x, y + s - r, s, r);
+        ctx.fillRect(x, y, r, s);
+        ctx.fillRect(x + s - r, y, r, s);
         const b = Math.max(2, Math.round(s * 0.5));
         ctx.fillStyle = COLORS.ink;
         ctx.fillRect(x + (s - b) / 2, y + (s - b) / 2, b, b);

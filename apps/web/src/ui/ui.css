@@ -142,6 +142,7 @@
 .pl-stack {
   display: grid;
   gap: 8px;
+  align-content: start;
 }
 .pl-grid-2 {
   display: grid;
@@ -466,6 +467,9 @@
   display: grid;
   gap: 4px;
 }
+.pl-split-legend li > :last-child {
+  white-space: nowrap;
+}
 .pl-split-legend li {
   display: flex;
   align-items: center;
@@ -564,6 +568,7 @@
 .pl-portrait {
   position: relative;
   display: inline-block;
+  vertical-align: top;
   line-height: 0;
   image-rendering: pixelated;
 }
@@ -576,6 +581,10 @@
   border: var(--pl-border);
   padding: 8px;
   display: inline-block;
+  width: max-content;
+  max-width: 100%;
+  justify-self: start;
+  align-self: start;
 }
 .pl-portrait-cell {
   position: absolute;

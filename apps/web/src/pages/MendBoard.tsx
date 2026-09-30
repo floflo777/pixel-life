@@ -131,7 +131,7 @@ export function MendBoard({ friends, onRetry, mode, viewerTokenId, onMend, onOpe
                 >
                   <div className="pl-stack">
                     {c.appearance ? (
-                      <FriendPortrait view={{ appearance: c.appearance, pub: c.pub, loaned: false }} scale={5} framed />
+                      <FriendPortrait view={{ appearance: c.appearance, pub: c.pub, loaned: false }} scale={6} framed />
                     ) : (
                       <Skeleton width={96} height={96} />
                     )}
