@@ -1,0 +1,17 @@
+{
+  "name": "@pl/realtime",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Hub realtime: transport-agnostic room shards, directory, navmesh, and the browser HubClient.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@pl/shared": "*"
+  }
+}

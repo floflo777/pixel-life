@@ -1,0 +1,11 @@
+/* Trusted runtime layout (CLI only). The Pixel Life shell sets the same variables on its own wrapper. */
+:root {
+  --rf-game-max-width: 960px;
+  --rf-game-aspect-ratio: 3 / 2;
+}
+/* Phones: portrait frame so the booth, odds and reveal have room (360 px wide → 480 px tall). */
+@media (max-width: 600px) {
+  :root {
+    --rf-game-aspect-ratio: 3 / 4;
+  }
+}

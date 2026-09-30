@@ -1,0 +1,22 @@
+/** @pl/audio: WebAudio engine, procedural SFX cue registry and adaptive generative music for Pixel Life. */
+export { AudioEngine, DEFAULT_VOLUMES, REDUCED_MAX_VOICES, STEAL_FADE } from "./engine";
+export type { AudioEngineOptions, Bus, EngineStatus, PlayParams } from "./engine";
+export { CUES, CUE_ID, CUE_NAMES, cueDef } from "./cues";
+export type { CueDef, CueGroup, CueName, StepMode } from "./cues";
+export { cueAllowed, cueLevel, cuePan, cuePlaybackRate, stepSemitones } from "./cue-params";
+export { VoiceLimiter } from "./voice-limiter";
+export { createDuckState, requestDuck } from "./duck";
+export type { DuckState } from "./duck";
+export { MusicDirector, LOOKAHEAD, TICK_MS, SLOWMO_SEMITONES, REDUCED_INTENSITY_CAP } from "./music/director";
+export type { MusicHost, MusicSeed, SchedulerTimer } from "./music/director";
+export { composeBar, chordDegree, chordTones } from "./music/compose";
+export type { NoteEvent } from "./music/compose";
+export { HUB_THEME, LAYERS, RUN_THEME, THEMES, layerLevels } from "./music/themes";
+export type { InstrumentName, LayerName, Mood, ThemeName, ThemeSpec } from "./music/themes";
+export { STINGER_NAMES, STINGER_QUANTIZE, stingerEvents } from "./music/stingers";
+export type { StingerName } from "./music/stingers";
+export { nextQuantizedStep, stepAt, stepDuration, stepTime, stepsDue } from "./music/clock";
+export type { Quantize } from "./music/clock";
+export { DEFAULT_SAMPLE_RATE, makeSeamlessLoop, patchDuration, renderPatch } from "./synth/render";
+export type { Layer, NoiseLayer, Patch, ToneLayer, Wave } from "./synth/patch";
+export { panForScreenX, semitonesToRatio } from "./math";

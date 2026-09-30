@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Stage Playground</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Sometype+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ink: #111111;
+        --paper: #eeeeee;
+        --signal: #ccff00;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--paper);
+        overflow: hidden;
+      }
+      #stage {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      #ui {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+      .card {
+        position: absolute;
+        background: var(--paper);
+        border: 2px solid var(--ink);
+        box-shadow: 2px 2px 0 var(--ink);
+        color: var(--ink);
+        font:
+          10px/11px "Silkscreen",
+          monospace;
+        padding: 2px 6px 3px;
+        white-space: nowrap;
+        transform: translate(-50%, -100%);
+      }
+      .inv {
+        background: var(--ink);
+        color: var(--paper);
+        box-shadow: 4px 4px 0 var(--ink);
+        font-size: 26px;
+        line-height: 26px;
+        font-weight: 700;
+        padding: 8px 18px 6px;
+        letter-spacing: 3px;
+      }
+      .pill {
+        background: var(--signal);
+        font-size: 11px;
+        font-weight: 700;
+        padding: 1px 6px;
+      }
+      #stats {
+        position: fixed;
+        left: 8px;
+        bottom: 8px;
+        background: var(--ink);
+        color: var(--signal);
+        font:
+          11px/14px "Sometype Mono",
+          monospace;
+        padding: 6px 8px;
+        white-space: pre;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" aria-label="Pixel Life stage playground"></canvas>
+    <div id="ui"></div>
+    <div id="stats"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
