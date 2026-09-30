@@ -86,6 +86,27 @@ export const HANDHELD: NativeVenueEntry = {
   load: async () => (await import("@pl/game")).handheld.createHandheldVenue() as unknown as NativeVenue<GameStage>,
 };
 
+/**
+ * Pixel Putt: scarless floating mini-golf (GDD §11.8 A) by the Mend Well on the sky docks. Free rounds earn Bits only:
+ * no scars, no boards. The manifest mirrors `PIXEL_PUTT_MANIFEST` (kept static so `@pl/game` stays lazy).
+ */
+export const PIXEL_PUTT: NativeVenueEntry = {
+  manifest: {
+    id: "pixel-putt",
+    name: "Pixel Putt",
+    version: "0.1.0",
+    kind: "native",
+    room: "sky-docks",
+    requires: { ownedFriend: false },
+    economy: { sinks: [] },
+    results: { leaderboard: "score-desc", affectsScars: false },
+    thumbnail: "/favicon.svg",
+  },
+  rule: "Fling your Friend into the hole in the fewest shots. No scars here: a round for healing days.",
+  modes: ["quick"],
+  load: async () => (await import("@pl/game")).createPixelPuttVenue() as unknown as NativeVenue<GameStage>,
+};
+
 /** The Seed Pack Booth: the stock SDK game in `apps/seed-pack`, built to `/venues/seed-pack/`. */
 export const SEED_PACK_BOOTH: SdkVenueEntry = {
   manifest: {
@@ -110,6 +131,7 @@ export const SEED_PACK_BOOTH: SdkVenueEntry = {
 export const NATIVE_VENUES: Readonly<Record<string, NativeVenueEntry>> = {
   "pixel-life": PIXEL_LIFE,
   handheld: HANDHELD,
+  "pixel-putt": PIXEL_PUTT,
 };
 /** SDK venues by id. */
 export const SDK_VENUES: Readonly<Record<string, SdkVenueEntry>> = { "seed-pack": SEED_PACK_BOOTH };

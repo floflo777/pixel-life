@@ -23,6 +23,7 @@ describe("hub doors", () => {
     });
     expect(doorAction("seed-pack", null)).toMatchObject({ kind: "venue", href: "/venue/seed-pack" });
     expect(doorAction("handheld", null)).toMatchObject({ kind: "venue", href: "/play?venue=handheld" });
+    expect(doorAction("pixel-putt", null)).toMatchObject({ kind: "venue", href: "/play?venue=pixel-putt" });
     expect(doorAction("moon-base", null)).toEqual({ kind: "none" });
   });
 
