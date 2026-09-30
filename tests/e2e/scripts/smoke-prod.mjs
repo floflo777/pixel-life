@@ -19,6 +19,7 @@ const args = [
   "specs/web-guest.spec.ts",
   "specs/hub.spec.ts",
   "specs/economy-pages.spec.ts",
+  "specs/onboarding.spec.ts",
   ...process.argv.slice(2),
 ];
 console.log(`smoke:prod → ${url}`);

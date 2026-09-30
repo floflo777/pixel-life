@@ -90,8 +90,7 @@ test.describe("guest", () => {
 
   test("keyboard only: skip link, Play now with Enter, settings reachable", async ({ page, isMobile }) => {
     test.skip(isMobile, "keyboard flow is a desktop check");
-    // https://github.com/floflo777/pixel-life/issues/26: a live stage preventDefaults Enter/Space on focused buttons.
-    test.fixme(true, "#26 stage swallows Enter/Space on buttons");
+    // Regression test for #26 (a live stage used to swallow Enter/Space on focused buttons).
     await page.goto("/");
     // Only a live stage installs the key handler: wait for it so the check is deterministic.
     await expect(page.locator(".landing-stage")).toHaveAttribute("data-state", /live|fallback/);

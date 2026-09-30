@@ -77,7 +77,7 @@ export default defineConfig({
             name: "mobile-iphone13",
             use: { ...devices["iPhone 13"], launchOptions: {} },
             // Only the guest and read-only specs: the full wallet flows are covered by the Chromium projects.
-            testMatch: /(web-guest|smoke|economy-pages)\.spec\.ts$/,
+            testMatch: /(web-guest|smoke|economy-pages|onboarding)\.spec\.ts$/,
           },
         ]
       : []),

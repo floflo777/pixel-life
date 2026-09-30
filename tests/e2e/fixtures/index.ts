@@ -34,6 +34,8 @@ export interface PixelLifeOptions {
   injectWallet: boolean;
   /** Chain the wallet starts on, e.g. "0x1" for the wrong-chain case. */
   walletChainId: string;
+  /** Returning visitor: the first-visit intro cards were already seen (false = a brand-new browser). */
+  seenOnboarding: boolean;
 }
 
 /** Fixtures provided to every test. */
@@ -59,6 +61,7 @@ export const test = base.extend<PixelLifeOptions & PixelLifeFixtures>({
   walletAccounts: [2, { option: true }],
   injectWallet: [true, { option: true }],
   walletChainId: ["0x1237", { option: true }],
+  seenOnboarding: [true, { option: true }],
 
   wallet: async ({ walletAccounts }, use) => {
     await use(createTestWallet(walletAccounts));
@@ -95,7 +98,8 @@ export const test = base.extend<PixelLifeOptions & PixelLifeFixtures>({
     await use(await routeChainRpc(context, chainUrl));
   },
 
-  context: async ({ context, wallet, chainUrl, injectWallet, walletChainId }, use) => {
+  context: async ({ context, wallet, chainUrl, injectWallet, walletChainId, seenOnboarding }, use) => {
+    if (seenOnboarding) await markOnboardingSeen(context);
     if (injectWallet) {
       await installTestWallet(context, wallet, {
         rpcUrl: ROBINHOOD_RPC_URL,
@@ -113,6 +117,20 @@ export const test = base.extend<PixelLifeOptions & PixelLifeFixtures>({
 });
 
 export { expect };
+
+/** localStorage key of the web app's onboarding progress (apps/web/src/onboarding/progress.ts). */
+export const ONBOARDING_KEY = "pl.onboarding.v1";
+
+/** Makes every page of `context` a returning visitor (intro cards seen), unless a test already stored progress. */
+export async function markOnboardingSeen(context: BrowserContext): Promise<void> {
+  await context.addInitScript((key) => {
+    try {
+      if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify({ introSeen: true, coachDone: [] }));
+    } catch {
+      // Opaque origins (the SDK child frame) have no storage.
+    }
+  }, ONBOARDING_KEY);
+}
 
 /** A second (third, ...) player: own context, own wallet, own minted Friends, same routes as the default page. */
 export interface Player {
@@ -132,6 +150,7 @@ export async function openPlayer(
   const friends: string[] = [];
   for (let i = 0; i < (options.owned ?? 1); i++) friends.push(await chain.mint(wallet.address));
   const context = await browser.newContext(options.contextOptions);
+  await markOnboardingSeen(context);
   if (options.injectWallet !== false)
     await installTestWallet(context, wallet, { rpcUrl: ROBINHOOD_RPC_URL, nodeRpcUrl: chain.url });
   await routeChainRpc(context, chain.url);
