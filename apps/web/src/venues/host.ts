@@ -4,7 +4,7 @@
  * and local-only scars (D-11).
  */
 import type { CueName } from "@pl/audio";
-import type { DailySeed, RunAck } from "@pl/shared";
+import type { DailySeed, RunAck, RunSubmitReq } from "@pl/shared";
 import { createSignal, type ReadonlySignal, type VenueHost, type VenueIdentity, type VenueResult } from "@pl/venue-kit";
 import type { Services } from "../app/services.js";
 import { utcDay } from "../lib/format.js";
@@ -44,6 +44,24 @@ export function freeSeed(): number {
   return a[0] ?? 0;
 }
 
+/**
+ * The `POST /api/runs` body for a reported result: the input log as base64, the UTC day for Dailies, and the optional
+ * run-start scars / start time / belt trial when the venue supplied them (the server replays from them when plausible).
+ */
+export function runRequest(result: VenueResult, now: number): RunSubmitReq {
+  return {
+    venueId: result.venueId,
+    kind: result.kind,
+    seed: result.seed,
+    inputs: toBase64(result.inputs),
+    claimed: result.claimed,
+    ...(result.kind === "daily" ? { day: utcDay(now) } : {}),
+    ...(result.startLost !== undefined ? { startLost: result.startLost } : {}),
+    ...(result.startedAt !== undefined ? { startedAt: result.startedAt } : {}),
+    ...(result.beltTrial !== undefined ? { beltTrial: result.beltTrial } : {}),
+  };
+}
+
 /** Creates the host for one mounted venue. */
 export function createVenueHost(o: VenueHostOptions): VenueHost<GameStage> {
   const { services: s } = o;
@@ -70,14 +88,7 @@ export function createVenueHost(o: VenueHostOptions): VenueHost<GameStage> {
     },
     async reportResult(result) {
       const now = Date.now();
-      const req = {
-        venueId: result.venueId,
-        kind: result.kind,
-        seed: result.seed,
-        inputs: toBase64(result.inputs),
-        claimed: result.claimed,
-        ...(result.kind === "daily" ? { day: utcDay(now) } : {}),
-      };
+      const req = runRequest(result, now);
       let ack: RunAck;
       let problem: string | null = null;
       if (mode === "guest") {
