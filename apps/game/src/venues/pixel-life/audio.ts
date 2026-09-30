@@ -4,7 +4,7 @@
  * for panning, combo pitch ladders and adaptive music, and plain `play(cue)` is the fallback.
  */
 import type { VenueAudio } from "@pl/venue-kit";
-import { KIND_NAMES } from "./sim-view";
+import { CREATURE_KINDS as KIND_NAMES } from "../../creatures/sprites";
 
 /** Per-play parameters understood by `@pl/audio`'s `AudioEngine.play`. */
 export interface CueParams {

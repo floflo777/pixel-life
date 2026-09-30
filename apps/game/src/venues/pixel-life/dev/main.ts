@@ -2,7 +2,7 @@
  * Loose Pixels dev page: mounts the venue on a real stage with an in-memory host (venue-kit test host rules: sim economy,
  * guest/owner identity, local seeds) and the `@pl/audio` engine. Query params:
  * `owner=1` (own Friend, regrow CTA), `token=<id>` (fixture Friend), `auto=free|daily` (skip the start card),
- * `oneswitch=1`, `reduced=1`, `noflash=1`, `quality=low|medium|high`, `seed=<n>`, `mute=1`.
+ * `oneswitch=1`, `taptarget=1`, `belt=<id>` (Fling Belt trial), `reduced=1`, `noflash=1`, `quality=low|medium|high`, `seed=<n>`, `mute=1`.
  */
 import { AudioEngine, CUES, type CueName } from "@pl/audio";
 import { type FriendView, type RunKind } from "@pl/shared";
@@ -12,7 +12,7 @@ import { createStage, type SharedStage } from "../../../stage/stage";
 import type { QualityTier } from "../../../stage/quality";
 import { DAY_SKY } from "../../../post/post-pipeline";
 import type { VenueAudioExt } from "../audio";
-import { FAKE_SIM } from "../fake-sim";
+import { SHARED_SIM } from "../sim-module";
 import { createLoosePixelsVenue, type LoosePixelsInstance } from "../venue";
 
 const q = new URLSearchParams(location.search);
@@ -96,13 +96,14 @@ const host: VenueHost<SharedStage> = {
   },
 };
 const dev = document.querySelector<HTMLElement>("#dev") ?? document.body;
-dev.textContent = `sim: ${FAKE_SIM.name} · ${owner ? "owner" : "guest"} #${appearance.tokenId} · m mute`;
+dev.textContent = `sim: ${SHARED_SIM.name ?? "shared"} · ${owner ? "owner" : "guest"} #${appearance.tokenId} · m mute`;
 
 const auto = q.get("auto") as RunKind | null;
 const venue = createLoosePixelsVenue({
-  sim: FAKE_SIM,
   ...(auto ? { autoStart: auto } : {}),
   oneSwitch: flag("oneswitch"),
+  tapTarget: flag("taptarget"),
+  ...(q.get("belt") ? { beltTrial: q.get("belt") ?? "" } : {}),
   noFlashes: flag("noflash"),
 });
 const instance = (await venue.mount(host)) as LoosePixelsInstance;

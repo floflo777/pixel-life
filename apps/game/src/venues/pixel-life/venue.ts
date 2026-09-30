@@ -12,16 +12,24 @@ import {
   popcount,
   type DailySeed,
   type EconomyQuote,
+  type Hex64,
   type RunAck,
   type RunKind,
+  beltTrialSeed,
+  BOT_PROFILES,
+  createBot,
+  SimEvents as EV,
+  type Bot,
   type Sim,
   type SimConfig,
+  type SimEvent as AnyEvent,
+  type SimView as FullSimView,
 } from "@pl/shared";
 import type { NativeVenue, VenueHost, VenueInstance, VenueManifest } from "@pl/venue-kit";
 import { RUN_POSE, type OrbitPose } from "../../stage/camera-rig";
 import type { SharedStage as GameStage } from "../../stage/stage";
 import type { InputEvent } from "../../stage/input";
-import { previewDistances, previewPoints } from "./aim";
+import { powerForDistance, previewDistances, previewPoints } from "./aim";
 import { PHASE_INTENSITY, RunAudio, smashCue, telegraphCue, type VenueAudioExt } from "./audio";
 import { Hud, type ScreenPoint } from "./hud";
 import { comboScale as comboGrow, planFor, TimeWarp, type Beat, type JuicePlan } from "./juice";
@@ -42,15 +50,19 @@ import {
   dragCancels,
   dragPower,
   flingInput,
+  ButtonEdges,
   InputLog,
   KeyboardAim,
+  MIN_POWER,
+  padAim,
+  PAD,
   OneSwitchAim,
   SteerEncoder,
 } from "./input";
-import { buildResults, scarNote, type ResultsModel } from "./results";
+import { buildResults, replayNote, scarNote, type ResultsModel } from "./results";
 import { disposePlaceholderCreatures, RunScene, U, type CreatureFactory } from "./scene";
 import { drawSilhouette, renderShareCard } from "./share-card";
-import { asFullView, EV, KIND, PX, type AnyEvent, type FullSimView, type SimModule } from "./sim-view";
+import { KIND, PX, SHARED_SIM, type SimModule } from "./sim-module";
 
 /** Stable venue id (hub door, results, leaderboards). */
 export const VENUE_ID = "pixel-life";
@@ -89,15 +101,22 @@ export const MANIFEST: VenueManifest = {
 
 /** Options when building the venue (the shell passes none; dev pages and tests use them). */
 export interface LoosePixelsOptions {
-  /** The sim implementation. Required: the real `@pl/shared` sim, or the fake stand-in for the dev page. */
-  readonly sim: SimModule;
+  /** The sim implementation; defaults to the real `@pl/shared` sim (the one the server replays). */
+  readonly sim?: SimModule | undefined;
   /** Creature renderer (the creatures module); placeholder voxel sprites otherwise. */
   readonly creatureFactory?: CreatureFactory;
   readonly arena?: string;
-  /** Skip the start card and begin a run of this kind right away. */
+  /**
+   * A Fling Belt trial the host wants played (belt id): the run uses the fixed `beltTrialSeed(id)` everyone shares and
+   * is reported with `beltTrial` so the server can grade it.
+   */
+  readonly beltTrial?: string;
+  /** Skip the start card and begin a run of this kind right away (a belt trial when `beltTrial` is set). */
   readonly autoStart?: RunKind;
   /** Accessibility: one-switch controls (auto-rotating aim, oscillating power). */
   readonly oneSwitch?: boolean;
+  /** Accessibility: tap-to-target (a tap flings toward the point with the power that stops there) instead of tap-to-sweep. */
+  readonly tapTarget?: boolean;
   /** Accessibility: no impact-frame inversions (separate from reduced motion). */
   readonly noFlashes?: boolean;
   /** Clock for timers (tests). Defaults to `performance.now()`. */
@@ -109,12 +128,14 @@ export interface LoosePixelsDebug {
   readonly state: () => string;
   readonly view: () => FullSimView | null;
   readonly results: () => ResultsModel | null;
-  readonly start: (kind: RunKind) => Promise<void>;
+  readonly start: (kind: RunKind, beltTrial?: string) => Promise<void>;
   /** Fires a fling now (angle 0..4095, power 0..1). */
   readonly fling: (ang: number, p: number) => void;
   readonly shareCanvas: () => HTMLCanvasElement | null;
-  /** Fast-forwards the sim by `ticks` with no inputs (events are drained silently); capture tooling only. */
+  /** Fast-forwards the sim by `ticks` (autopilot inputs only; events drained silently); capture tooling only. */
   readonly advance: (ticks: number) => void;
+  /** Lets the sim's balance bot play (attract mode, captures); null hands control back. */
+  readonly autopilot: (profile: keyof typeof BOT_PROFILES | null, seed?: number) => void;
 }
 
 /** A mounted Loose Pixels instance. */
@@ -132,6 +153,13 @@ const BUBBLES: Readonly<Record<number, string>> = {
   [KIND.fizz]: "tss…",
 };
 const ACCENT_HEX = [0xed927e, 0xf2ce68, 0x7db4db, 0xb3a0d8, 0xb3a0d8, 0xf2ce68] as const;
+/** Camera focus offset toward the viewer (world units): keeps the island's far rim and the HUD apart. */
+const CAM_Z = 0.5;
+/** Window event the web shell's coachmarks listen to (apps/web onboarding `COACH_DOM_EVENT`). */
+export const COACH_DOM_EVENT = "pl:coach";
+/** Coach event names the venue reports (apps/web onboarding `COACH_EVENTS`). */
+export type CoachEvent =
+  "run:start" | "fling" | "pixels:loose" | "pixels:grabbed" | "pixels:scarred" | "pause" | "run:end";
 const BITE_TIPS_KEY = "loose-pixels:bite-tips";
 
 function runIdOf(): string {
@@ -140,7 +168,7 @@ function runIdOf(): string {
   return `run-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
 }
 
-/** Builds the venue around a sim implementation. */
+/** Builds the venue (pass `{}` for the real `@pl/shared` sim and creatures; options exist for hosts, dev pages, tests). */
 export function createLoosePixelsVenue(opts: LoosePixelsOptions): NativeVenue<GameStage> {
   return {
     manifest: MANIFEST,
@@ -150,6 +178,7 @@ export function createLoosePixelsVenue(opts: LoosePixelsOptions): NativeVenue<Ga
 
 async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions): Promise<LoosePixelsInstance> {
   const stage = host.stage;
+  const simModule = opts.sim ?? SHARED_SIM;
   const now = opts.now ?? (() => performance.now());
   const audio = new RunAudio(host.audio as VenueAudioExt);
   const reduced = host.reducedMotion;
@@ -164,12 +193,14 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     minW: stage.rig.minVisibleWidth,
     timeScale: stage.timeScale,
   };
-  const pose: OrbitPose = { ...RUN_POSE, distance: 16 };
+  // Frame 1: the whole island in view, top well visible (GDD §2.4: pitch 38°, FOV 28°), underside cut by the bottom edge.
+  const pose: OrbitPose = { ...RUN_POSE, pitch: 38, fov: 28, distance: 14 };
   stage.rig.pose = { ...pose };
   stage.rig.followRate = reduced ? 1.5 : 6;
-  stage.rig.minVisibleWidth = 9.5;
+  // Portrait phones: pull back until the island (plus a little sky) fits the width.
+  stage.rig.minVisibleWidth = 12.5;
   stage.setAccess({ reducedMotion: reduced, noFlashes: opts.noFlashes ?? false });
-  stage.rig.snap(new Vector3(0, 0, 0.9));
+  stage.rig.snap(new Vector3(0, 0, CAM_Z));
 
   // ── Friend & scene ────────────────────────────────────────────────────────────────────────────────────────────────
   const friendView = () => host.identity.friend;
@@ -178,15 +209,33 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   const total = popcount(front);
   const startLostNow = () =>
     effectiveLost(friendView().pub.scars, Date.now(), appearance.tokenId, { goldHeld: friendView().pub.goldHeld });
-  let scene = new RunScene({
-    appearance,
-    startLost: startLostNow(),
-    goldHeld: friendView().pub.goldHeld,
-    arena: { a: 36, b: 24, name: arenaName },
-    seed: 21,
-    reducedMotion: reduced,
-    ...(opts.creatureFactory ? { creatureFactory: opts.creatureFactory } : {}),
-  });
+  /**
+   * The real Munchies speak for themselves and draw their own spawn ripple; generic bubbles and the scene ripple are
+   * only for injected renderers that don't (flips to true as soon as any visual speaks).
+   */
+  let creaturesSpeak = !opts.creatureFactory;
+  const GULP_BUBBLE = -1;
+  const buildScene = (startLost: Hex64, seed: number, arena: { a: number; b: number }): RunScene =>
+    new RunScene({
+      appearance,
+      startLost,
+      goldHeld: friendView().pub.goldHeld,
+      arena: { ...arena, name: arenaName },
+      seed,
+      reducedMotion: reduced,
+      ...(opts.creatureFactory ? { creatureFactory: opts.creatureFactory } : {}),
+      onCreatureSpeak: (id, text, sec) => {
+        creaturesSpeak = true;
+        const c = cur?.creatures.find((q) => q.id === id);
+        if (c) hud.bubble(id, text, projectSim(c.x, c.z, c.y + 6), now(), sec * 1000);
+      },
+      onGulpSpeak: (text, sec) => {
+        const g = cur?.gulp;
+        if (g) hud.bubble(GULP_BUBBLE, text, projectSim(g.mouthX, g.mouthZ, 14), now(), sec * 1000);
+      },
+    });
+  const MEADOW = { a: 36, b: 24 };
+  let scene = buildScene(startLostNow(), 21, MEADOW);
   stage.scene.add(scene.root);
 
   const loaned = host.identity.loaned || host.identity.mode === "guest";
@@ -202,9 +251,19 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   let sim: Sim | null = null;
   let cfg: SimConfig | null = null;
   let daily: DailySeed | null = null;
+  /** Belt id of the current run when it is a Fling Belt trial. */
+  let trial: string | null = null;
+  /** Wall-clock start of the current run (reported with its start scars so the server can replay from them). */
+  let startedAt = 0;
   let prev: FullSimView | null = null;
   let cur: FullSimView | null = null;
   let log = new InputLog();
+  let pilot: Bot | null = null;
+  /** Autopilot inputs for this tick (the bot reads the view like a player reads the screen). */
+  const pilotInputs = (): void => {
+    if (!pilot || !cur) return;
+    for (const i of pilot.decide(cur)) log.push(i);
+  };
   const steer = new SteerEncoder();
   const warp = new TimeWarp(reduced);
   const keys = new KeyboardAim();
@@ -217,7 +276,9 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   let endReason: EndReason = "time";
   let results: ResultsModel | null = null;
   let shareCanvas: HTMLCanvasElement | null = null;
-  let aim: { ang: number; p: number; from: "drag" | "keys" | "one" } | null = null;
+  let aim: { ang: number; p: number; from: "drag" | "keys" | "one" | "pad" } | null = null;
+  const padButtons = new ButtonEdges();
+  let padLast: { ang: number; p: number } | null = null;
   let aimSlowLeft = 0;
   let keyAimShownUntil = 0;
   let lastChargeStep = 0;
@@ -226,7 +287,6 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   let sweepKey = false;
   let lastPhase = -1;
   let musicSlow = 0;
-  let dollyUntil = 0;
   const tmp = new Vector3();
   const tmp2 = new Vector3();
 
@@ -252,7 +312,27 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     const b = body();
     return b ? projectSim(b.x, b.z, 0) : null;
   };
-  const friendHead = (): ScreenPoint => project(tmp.copy(scene.friendPos).setY(scene.friendPos.y + 2.4));
+  // Callouts sit beside the Friend's head (frame 1: "−4 px" to its upper right), clear of the timer.
+  const friendHead = (): ScreenPoint => project(tmp.copy(scene.friendPos).add(tmp2.set(1.7, 1.9, 0)));
+
+  // ── Coachmarks (web onboarding listens for `pl:coach` window events; unknown names are ignored) ─────────────────────
+  let coachTick = -1;
+  const coachSent = new Set<CoachEvent>();
+  const coach = (name: CoachEvent): void => {
+    // Pixel beats come in bursts (one event per pixel): report each name at most once per sim tick.
+    const tick = cur?.tick ?? -1;
+    if (tick !== coachTick) {
+      coachTick = tick;
+      coachSent.clear();
+    }
+    if (coachSent.has(name)) return;
+    coachSent.add(name);
+    try {
+      window.dispatchEvent(new CustomEvent(COACH_DOM_EVENT, { detail: name }));
+    } catch {
+      // No window (tests) or a host that forbids custom events: hints are optional.
+    }
+  };
 
   // ── Juice ─────────────────────────────────────────────────────────────────────────────────────────────────────────
   const juice = (plan: JuicePlan, at?: ScreenPoint): void => {
@@ -289,12 +369,14 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     };
     switch (e.type) {
       case "launch":
+        coach("fling");
         audio.cue("fling.release", { gain: 0.6 + ((e.b ?? 0) / 1023) * 0.6, x: pan() });
         scene.hop(time, (e.b ?? 0) / 1023);
         break;
       case "smash": {
         const kind = before.creatures.find((c) => c.id === e.a)?.kind ?? KIND.nib;
         const pts = e.b ?? 0;
+        if (e.a !== undefined) scene.smashCreature(e.a);
         scene.burst(x, z, [ACCENT_HEX[kind] ?? 0xeeeeee, 0x111111, 0xeeeeee], reduced ? 4 : 8, 1.5);
         if (pts > 0) {
           const combo = after.friend.combo;
@@ -315,6 +397,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       }
       case "bite": {
         const px = e.b ?? 1;
+        coach("pixels:loose");
         beat({ kind: "bite", px });
         scene.squash(time);
         sayFriend(lossCallout(px));
@@ -334,6 +417,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         audio.cue("pixel.pop", { x: pan() });
         break;
       case "pixelBack":
+        coach("pixels:grabbed");
         if (e.b === 1) {
           beat({ kind: "clutch" });
           sayFriend(grabCallout(true));
@@ -344,6 +428,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         }
         break;
       case "pixelLost":
+        coach("pixels:scarred");
         audio.cue(e.b === EV.LOST_EDGE || e.b === EV.LOST_GULP ? "pixel.fall" : "pixel.lost", { x: pan() });
         break;
       case "edge":
@@ -356,6 +441,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         }
         break;
       case "hit":
+        if (e.a !== undefined && e.a >= 0) scene.hitCreature(e.a);
         if (e.b === EV.HIT_PLATE) {
           beat({ kind: "plate" }, projectSim(x, z, 2));
           audio.cue("bonk.shell", { x: pan() });
@@ -369,6 +455,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         }
         break;
       case "parry":
+        if (e.a !== undefined) scene.hitCreature(e.a);
         say({ text: "parry", tone: "paper" }, x, z, 4);
         break;
       case "glance":
@@ -381,18 +468,19 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         const cue = telegraphCue(kind);
         if (cue && kind !== KIND.snatch) audio.cue(cue, { x: pan(), gain: 0.7 });
         const text = BUBBLES[kind];
-        if (text && e.a !== undefined) hud.bubble(e.a, text, projectSim(x, z, 6), now(), 600);
+        if (text && e.a !== undefined && !creaturesSpeak) hud.bubble(e.a, text, projectSim(x, z, 6), now(), 600);
         break;
       }
       case "steal":
         audio.cue("snatch.cackle", { x: pan() });
-        if (e.a !== undefined) hud.bubble(e.a, "mine!", projectSim(x, z, 9), now(), 1200);
+        if (e.a !== undefined && !creaturesSpeak) hud.bubble(e.a, "mine!", projectSim(x, z, 9), now(), 1200);
         break;
       case "yank":
+        if (e.a !== undefined) scene.attackCreature(e.a);
         audio.cue("slurp.tongue", { x: pan() });
         break;
       case "spawn":
-        scene.ripple(x, z);
+        if (!creaturesSpeak) scene.ripple(x, z);
         audio.cue("creature.spawn", { x: pan(), gain: 0.5 });
         break;
       case "explode":
@@ -429,42 +517,43 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
 
   const onGulp = (e: AnyEvent, x: number, z: number): void => {
     switch (e.a) {
-      case EV.GULP_RUMBLE: {
+      case EV.GULP_EV_RUMBLE: {
         audio.cue("gulp.rumble");
         audio.music?.setMood("gulp");
         audio.music?.stinger("gulp");
         hud.showBanner("gulp!", "coral", now(), 1200, true);
         const p = projectSim(x, z);
         hud.setEdgeBand(p && p.x < canvas.clientWidth / 2 ? "left" : "right");
-        if (!reduced) dollyUntil = time + 12;
         break;
       }
-      case EV.GULP_BITE:
+      case EV.GULP_EV_BITE:
         beat({ kind: "gulpBite" });
+        scene.gulpBeat("bite");
         audio.cue("gulp.bite");
         scene.burst(x, z, [0xb9d984, 0xed927e, 0xb3a0d8], reduced ? 8 : 20, 0, 9);
         break;
-      case EV.GULP_TOOTH_HIT:
+      case EV.GULP_EV_TOOTH_HIT:
         beat({ kind: "tooth" }, projectSim(x, z, 2));
+        scene.gulpBeat("tooth", e.b ?? 0);
         audio.cue("gulp.tooth", { step: e.b ?? 0 });
         say(popCallout(100), x, z, 5);
         scene.burst(x, z, [0xf2ce68, 0xeeeeee], 6, 3, 6);
         break;
-      case EV.GULP_BURP:
+      case EV.GULP_EV_BURP:
         gulpBurped = true;
+        scene.gulpBeat("burp");
         audio.cue("gulp.burp");
         audio.music?.stinger("burp");
         hud.showBanner("gulp burped! +500", "lime", now(), 1600);
         break;
-      case EV.GULP_INHALE:
+      case EV.GULP_EV_INHALE:
         audio.cue("gulp.inhale");
         hud.showBanner("inhale!", "coral", now(), 900, true);
         break;
-      case EV.GULP_SINK:
-      case EV.GULP_REGROW:
+      case EV.GULP_EV_SINK:
+      case EV.GULP_EV_REGROW:
         audio.music?.setMood("normal");
         hud.setEdgeBand(null);
-        dollyUntil = 0;
         break;
       default:
         break;
@@ -520,9 +609,17 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         break;
       }
       case "tap": {
-        // Tap-to-sweep: steer toward the tapped ground point (collect loose pixels without a full fling).
         const g = groundAt(e.at.x, e.at.y);
-        if (g) steerTarget = { x: g.x, z: g.z, until: now() + 1500 };
+        if (!g) break;
+        const b = body();
+        if (opts.tapTarget && b) {
+          // Tap-to-target: fling toward the point with the power whose slide stops there (sim damping, own mass).
+          const dist = Math.hypot(g.x - b.x, g.z - b.z);
+          fire(angleFromDir(g.x - b.x, g.z - b.z), Math.max(MIN_POWER, powerForDistance(dist, b.mass)));
+        } else {
+          // Tap-to-sweep: steer toward the tapped ground point (collect loose pixels without a full fling).
+          steerTarget = { x: g.x, z: g.z, until: now() + 1500 };
+        }
         break;
       }
       case "cancel":
@@ -588,8 +685,44 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     hud.hint(null);
   };
 
-  /** Continuous input work per rendered frame (keyboard rotation, charge, steering). */
+  /** First connected standard gamepad, if the browser exposes any. */
+  const readPad = (): Gamepad | null => {
+    try {
+      for (const p of navigator.getGamepads?.() ?? []) if (p?.connected) return p;
+    } catch {
+      // Gamepad API blocked (permissions policy): keyboard, touch and one-switch still work.
+    }
+    return null;
+  };
+  /** Gamepad (GDD §2.2): left stick aims + sets power, A fires (or release the right trigger), Start pauses. */
+  const pollPad = (): void => {
+    const pad = readPad();
+    if (!pad) {
+      if (aim?.from === "pad") aim = null;
+      padButtons.reset();
+      return;
+    }
+    if (padButtons.edge(PAD.start, pad.buttons[PAD.start]?.pressed ?? false) === "press" && state === "run")
+      setPaused(!paused);
+    if (!canPlay()) return;
+    const a = padAim(pad.axes[0] ?? 0, pad.axes[1] ?? 0);
+    if (a) {
+      padLast = a;
+      aim = { ...a, from: "pad" };
+    } else if (aim?.from === "pad") aim = null;
+    const fireA = padButtons.edge(PAD.a, pad.buttons[PAD.a]?.pressed ?? false) === "press";
+    const trig = padButtons.edge(PAD.trigger, (pad.buttons[PAD.trigger]?.value ?? 0) > PAD.triggerOn) === "release";
+    const shot = a ?? (trig ? padLast : null);
+    if ((fireA || trig) && shot) {
+      audioUnlockHint();
+      fire(shot.ang, shot.p);
+      padLast = null;
+    }
+  };
+
+  /** Continuous input work per rendered frame (keyboard rotation, charge, steering, gamepad). */
   const pollInput = (dt: number): void => {
+    pollPad();
     if (!canPlay()) return;
     const inp = stage.input;
     const left = inp.isKeyDown("ArrowLeft") || inp.isKeyDown("KeyA");
@@ -612,9 +745,9 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
           audio.cue("fling.charge", { step });
         }
         aim = { ang: angleFromDeg(keys.deg), p: Math.max(p, 0.12), from: "keys" };
-      } else if (time < keyAimShownUntil && aim?.from !== "drag") {
+      } else if (time < keyAimShownUntil && aim?.from !== "drag" && aim?.from !== "pad") {
         aim = { ang: angleFromDeg(keys.deg), p: 0.35, from: "keys" };
-      } else if (aim && aim.from !== "drag") aim = null;
+      } else if (aim && aim.from !== "drag" && aim.from !== "pad") aim = null;
     }
     if (aim?.from === "drag" && aim.p > 0) {
       const t = aim.p;
@@ -663,6 +796,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     if (state !== "run") return;
     if (p === paused && !(p === false && resumeAt > 0)) return;
     if (p) {
+      coach("pause");
       paused = true;
       resumeAt = 0;
       hud.setCountdown(0);
@@ -685,12 +819,17 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   window.addEventListener("blur", onBlur);
 
   // ── Run lifecycle ─────────────────────────────────────────────────────────────────────────────────────────────────
-  const startRun = async (kind: RunKind): Promise<void> => {
+  const startRun = async (kind: RunKind, belt: string | null = null): Promise<void> => {
     if (state === "gone") return;
     hud.closeModal();
     let seed: number;
     daily = null;
-    if (kind === "daily") {
+    trial = belt;
+    startedAt = Date.now();
+    if (belt) {
+      kind = "free";
+      seed = beltTrialSeed(belt);
+    } else if (kind === "daily") {
       try {
         daily = await host.seeds.daily();
         seed = daily.seed;
@@ -701,27 +840,20 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       }
     } else seed = host.seeds.free();
     const startLost = startLostNow();
-    // Rebuild the scene so the Friend shows its current scars (they may have changed since the last run).
-    scene.dispose();
-    scene = new RunScene({
-      appearance,
-      startLost,
-      goldHeld: friendView().pub.goldHeld,
-      arena: { a: 36, b: 24, name: arenaName },
-      seed: seed >>> 0,
-      reducedMotion: reduced,
-      ...(opts.creatureFactory ? { creatureFactory: opts.creatureFactory } : {}),
-    });
-    stage.scene.add(scene.root);
     cfg = {
       seed: seed >>> 0,
       kind,
       arena: arenaName,
       friend: { front, lost: startLost, familyId: appearance.familyId, goldHeld: friendView().pub.goldHeld },
     };
-    sim = opts.sim.createSim(cfg);
-    cur = asFullView(sim.view());
+    sim = simModule.createSim(cfg);
+    cur = sim.view();
     prev = cur;
+    // Rebuild the scene so the Friend shows its current scars (they may have changed since the last run) and the
+    // island matches the sim's arena.
+    scene.dispose();
+    scene = buildScene(startLost, seed >>> 0, { a: cur.arena.a, b: cur.arena.b });
+    stage.scene.add(scene.root);
     log = new InputLog();
     steer.reset();
     warp.reset();
@@ -733,15 +865,23 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     paused = false;
     resumeAt = 0;
     state = "run";
+    coach("run:start");
     audio.cue("run.start");
     audio.music?.play("run", seed);
     audio.music?.setIntensity(PHASE_INTENSITY[0]);
-    hud.hint(opts.oneSwitch ? "press to lock aim · press again to fling" : "drag to fling · tap to sweep");
+    hud.hint(
+      opts.oneSwitch
+        ? "press to lock aim · press again to fling"
+        : opts.tapTarget
+          ? "drag to fling · tap a spot to fling there"
+          : "drag to fling · tap to sweep",
+    );
   };
 
   const endRun = (): void => {
     if (!sim || !cfg || !cur || state !== "run") return;
     state = "ending";
+    coach("run:end");
     aim = null;
     const summary = sim.summary();
     const inputs = log.inputs;
@@ -768,8 +908,11 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       runId: runIdOf(),
       seed: runCfg.seed,
       kind: runCfg.kind,
-      inputs: opts.sim.encodeInputs(inputs),
+      inputs: simModule.encodeInputs(inputs),
       claimed: summary,
+      startLost: runCfg.friend.lost,
+      startedAt,
+      ...(trial ? { beltTrial: trial } : {}),
     });
     // Let the end slow-mo play (0.5× for 500 ms), then iris to results.
     setTimeout(() => {
@@ -818,9 +961,24 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     const note = document.createElement("p");
     note.textContent = scarNote(model, null, false);
     card.append(note);
+    const runTrial = trial;
+    const replayLine = document.createElement("p");
+    const setReplay = (ack: RunAck | null, failed: boolean): void => {
+      const text = replayNote(model.share.kind, model.share.day, ack, failed, runTrial ?? undefined);
+      replayLine.textContent = text ?? "";
+      replayLine.hidden = text === null;
+    };
+    setReplay(null, false);
+    card.append(replayLine);
     const btns = document.createElement("div");
     card.append(btns);
-    hud.button(btns, "play again", () => void startRun(cfg?.kind ?? "free"), true);
+    const again = trial;
+    hud.button(
+      btns,
+      again ? "try the trial again" : "play again",
+      () => void startRun(cfg?.kind ?? "free", again),
+      true,
+    );
     hud.button(btns, "share", () => void share(model));
     let regrowBtn: HTMLButtonElement | null = null;
     let quote: EconomyQuote | null = null;
@@ -832,7 +990,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         .then((q) => {
           quote = q;
           if (regrowBtn)
-            regrowBtn.textContent = `regrow ${model.lostThisRun} · ${formatRf(q.totalMicro)}${q.mode === "sim" ? " sim" : ""}`;
+            regrowBtn.textContent = `regrow ${model.lostThisRun} · ${formatRf(q.totalMicro)}${q.mode === "sim" ? " (simulated)" : ""}`;
         })
         .catch(() => {
           if (regrowBtn) regrowBtn.textContent = "regrow unavailable";
@@ -870,6 +1028,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     report
       .then((ack) => {
         note.textContent = scarNote(model, ack, false);
+        setReplay(ack, false);
         if (regrowBtn && ack.applied && quote) regrowBtn.disabled = false;
         else if (regrowBtn && ack.applied)
           // The quote may still be in flight: enable when it lands.
@@ -879,6 +1038,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       })
       .catch(() => {
         note.textContent = scarNote(model, null, true);
+        setReplay(null, true);
       });
   };
 
@@ -912,27 +1072,37 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     const p2 = document.createElement("p");
     p2.textContent = opts.oneSwitch
       ? "one-switch: press to lock the aim, press again to fling."
-      : "drag anywhere to fling (opposite to the drag). tap to sweep. keys: ←/→ aim, space charge, ↓ sweep, p pause.";
+      : `drag anywhere to fling (opposite to the drag). ${opts.tapTarget ? "tap a spot to fling there" : "tap to sweep"}. keys: ←/→ aim, space charge, ↓ sweep, p pause. pad: stick aims, a flings, start pauses.`;
     card.append(p1, p2);
     if (loaned) {
       const p3 = document.createElement("p");
       p3.textContent = `#${appearance.tokenId} is on loan: its scars reset at 00:00 utc.`;
       card.append(p3);
     }
-    hud.button(card, "▶ play", () => void startRun("free"), true);
-    hud.button(card, "daily run", () => void startRun("daily"));
+    const belt = opts.beltTrial;
+    if (belt) {
+      const p4 = document.createElement("p");
+      p4.textContent = `belt trial: ${belt} · same seed for everyone.`;
+      card.append(p4);
+      hud.button(card, "▶ start trial", () => void startRun("free", belt), true);
+      hud.button(card, "free run", () => void startRun("free"));
+    } else {
+      hud.button(card, "▶ play", () => void startRun("free"), true);
+      hud.button(card, "daily run", () => void startRun("daily"));
+    }
   };
 
   // ── Loops ─────────────────────────────────────────────────────────────────────────────────────────────────────────
   const unsubInput = stage.input.on(onInput);
   const unsubTick = stage.onTick(() => {
     if (state !== "run" || paused || resumeAt > 0 || !sim || sim.done) return;
+    pilotInputs();
     const inputs = log.flush(sim.tick);
     sim.step(inputs);
-    const before = cur ?? asFullView(sim.view());
+    const before = cur ?? sim.view();
     prev = before;
-    cur = asFullView(sim.view());
-    for (const e of sim.drainEvents()) onEvent(e as unknown as AnyEvent, before, cur);
+    cur = sim.view();
+    for (const e of sim.drainEvents()) onEvent(e, before, cur);
     if (cur.phase !== lastPhase) lastPhase = cur.phase;
     if (sim.done) endRun();
   });
@@ -972,13 +1142,19 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     }
     if (!cur || !prev) return;
     scene.sync(prev, cur, state === "run" ? alpha : 1, time, dt * scale);
+    const gulpUp = cur.gulp.phase >= 1 && cur.gulp.phase <= 4;
     // Camera: lerp(islandCentre, friend + v·0.12 s, 0.35); dolly out during Old Gulp.
     const b = body();
     if (b && state !== "results") {
-      const k = reduced ? 0.15 : 0.35;
-      stage.rig.follow(tmp.set((b.x + b.vx * 0.12) * U * k, 0, (b.z + b.vz * 0.12) * U * k + 0.9));
+      // While Old Gulp is up the camera favours the island centre so the whale and the whole rim stay in frame.
+      // Portrait: the readability clamp (≥ 3 px per sprite pixel) can't fit the whole island in the width, so the camera
+      // leans harder toward the Friend to keep it (the thing you steer) on screen.
+      const portrait = canvas.clientWidth < canvas.clientHeight;
+      const k = reduced ? 0.15 : gulpUp ? 0.12 : portrait ? 0.55 : 0.35;
+      stage.rig.follow(tmp.set((b.x + b.vx * 0.12) * U * k, 0, (b.z + b.vz * 0.12) * U * k + CAM_Z));
     }
-    const wantDist = pose.distance * (time < dollyUntil ? 1.12 : 1);
+    // Old Gulp: dolly out 12 % over 0.6 s (GDD §2.4), none under reduced motion (the static framing fits).
+    const wantDist = pose.distance * (gulpUp && !reduced ? 1.12 : 1);
     stage.rig.pose.distance += (wantDist - stage.rig.pose.distance) * Math.min(1, dt / 0.6);
     // HUD.
     const f = cur.friend;
@@ -1019,6 +1195,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       );
       const byId = new Map(cur.creatures.map((c) => [c.id, c] as const));
       hud.moveBubbles((id) => {
+        if (id === GULP_BUBBLE) return projectSim(cur?.gulp.mouthX ?? 0, cur?.gulp.mouthZ ?? 0, 14);
         const c = byId.get(id);
         return c ? projectSim(c.x, c.z, c.y + (c.kind === KIND.snatch ? 5 : 6)) : null;
       }, t);
@@ -1036,7 +1213,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     hud.frame(t);
   });
 
-  if (opts.autoStart) await startRun(opts.autoStart);
+  if (opts.autoStart) await startRun(opts.autoStart, opts.beltTrial ?? null);
   else showStart();
 
   const instance: LoosePixelsInstance = {
@@ -1066,17 +1243,22 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       advance: (ticks) => {
         if (!sim || state !== "run") return;
         for (let i = 0; i < ticks && !sim.done; i++) {
+          pilotInputs();
           sim.step(log.flush(sim.tick));
           sim.drainEvents();
+          cur = sim.view();
         }
-        cur = asFullView(sim.view());
+        cur = sim.view();
         prev = cur;
         if (sim.done) endRun();
+      },
+      autopilot: (profile, seed = 1) => {
+        pilot = profile ? createBot(BOT_PROFILES[profile], seed) : null;
       },
       state: () => state,
       view: () => cur,
       results: () => results,
-      start: (kind) => startRun(kind),
+      start: (kind, belt) => startRun(kind, belt ?? null),
       fling: (ang, p) => fire(ang, p),
       shareCanvas: () => {
         if (!results) return null;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BITS, EMPTY_MASK, fromIndices, popcount, type RunSummary } from "@pl/shared";
-import { buildResults, runSkill, scarNote, type ResultsInput } from "./results";
+import { buildResults, replayNote, runSkill, scarNote, type ResultsInput } from "./results";
 
 const front = fromIndices(Array.from({ length: 82 }, (_, i) => i + 20));
 const summary = (lost: number[], score = 3410): RunSummary => ({
@@ -63,5 +63,21 @@ describe("results", () => {
     expect(
       scarNote(m, { runId: "r", verified: "pending", applied: false, reason: "guest", scars: null }, false),
     ).toMatch(/loaner/);
+  });
+});
+
+describe("replayNote", () => {
+  const ack = (verified: "pending" | "ok" | "mismatch") => ({ runId: "r", verified, applied: false, scars: null });
+  it("is silent for free runs", () => {
+    expect(replayNote("free", undefined, ack("ok"), false)).toBeNull();
+  });
+  it("tracks the server replay of a daily run", () => {
+    expect(replayNote("daily", "2026-10-01", null, false)).toBe("daily 2026-10-01 · server replay pending…");
+    expect(replayNote("daily", "2026-10-01", ack("ok"), false)).toBe("daily 2026-10-01 · replay verified ✓");
+    expect(replayNote("daily", undefined, ack("mismatch"), false)).toBe("daily · replay mismatch: not ranked");
+    expect(replayNote("daily", undefined, null, true)).toBe("daily · not submitted");
+  });
+  it("labels belt trials", () => {
+    expect(replayNote("free", undefined, ack("ok"), false, "lime")).toBe("belt trial lime · replay verified ✓");
   });
 });

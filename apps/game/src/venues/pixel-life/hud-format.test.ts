@@ -54,9 +54,13 @@ describe("HUD formatting", () => {
     expect(chainLabel(10)).toBe("×1");
     expect(chainLabel(13)).toBe("×1.3");
     expect(chainLabel(20)).toBe("×2");
+    expect(chainLabel(50)).toBe("×5");
     expect(chainPips(10)).toBe(0);
-    expect(chainPips(14)).toBe(4);
-    expect(chainPips(25)).toBe(10);
+    // One popping fling (+0.3) already lights a pip; the bar fills at the ×5.0 cap.
+    expect(chainPips(13)).toBe(1);
+    expect(chainPips(30)).toBe(5);
+    expect(chainPips(50)).toBe(10);
+    expect(chainPips(80)).toBe(10);
   });
   it("writes callouts in the right tone", () => {
     expect(lossCallout(4)).toEqual({ text: "−4 px", tone: "coral" });

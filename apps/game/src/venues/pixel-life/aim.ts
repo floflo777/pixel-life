@@ -1,17 +1,40 @@
 /**
  * Aim preview maths (GDD §2.2/§2.3): the launch speed a power buys and the first 0.5 s of the slide, sampled as the
- * 8 trajectory dots. Mirrors the sim's constants for the preview only; the sim stays the authority on where you go.
+ * 8 trajectory dots. Uses the sim's constants and launch formula; the sim stays the authority on where you go.
  */
+import { launchSpeed as simLaunchSpeed, SimTuning, slideDistance } from "@pl/shared";
+import { powerToSim } from "./input";
 
-/** Launch constants (GDD §2.3). */
-export const LAUNCH = { vMax: 70, mRef: 70, massMin: 0.8, massMax: 1.35, dampConst: 10, dampLin: 1.8 } as const;
+/** Launch constants (GDD §2.3), read from the sim's tuning so the preview can never drift from the sim. */
+export const LAUNCH = {
+  vMax: SimTuning.V_MAX,
+  mRef: SimTuning.M_REF,
+  dampConst: SimTuning.DAMP_CONST,
+  dampLin: SimTuning.DAMP_LIN,
+} as const;
 /** Trajectory preview: 8 dots over the first 0.5 s. */
 export const PREVIEW = { dots: 8, seconds: 0.5 } as const;
 
-/** Launch speed (u/s) for power `p` (0..1) and mass `m` (present pixels). */
+/** Launch speed (u/s) for power `p` (0..1) and mass `m` (present pixels): the sim's own formula at its power step. */
 export function launchSpeed(p: number, m: number): number {
-  const mf = Math.min(LAUNCH.massMax, Math.max(LAUNCH.massMin, Math.sqrt(LAUNCH.mRef / Math.max(1, m))));
-  return LAUNCH.vMax * Math.max(0, Math.min(1, p)) ** 1.15 * mf;
+  return simLaunchSpeed(powerToSim(p), m);
+}
+
+/**
+ * Tap-to-target (GDD §2.2): the power (0..1) whose slide stops `dist` u away for a Friend of mass `m`, using the sim's
+ * damping integrator. Clamps to full power when the point is out of reach.
+ */
+export function powerForDistance(dist: number, m: number): number {
+  if (!(dist > 0)) return 0;
+  let lo = 0;
+  let hi = 1023;
+  if (slideDistance(simLaunchSpeed(hi, m), 1) <= dist) return 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (slideDistance(simLaunchSpeed(mid, m), 1) < dist) lo = mid;
+    else hi = mid;
+  }
+  return hi / 1023;
 }
 
 /**
