@@ -31,7 +31,7 @@ const NON_DETERMINISTIC = [
 }));
 
 export default tseslint.config(
-  { ignores: ["**/dist/**", "**/coverage/**", "vendor/**", "docs/**", "**/*.generated.ts"] },
+  { ignores: ["**/dist/**", "**/coverage/**", "**/.friendsdk/**", "vendor/**", "docs/**", "**/*.generated.ts"] },
   js.configs.recommended,
   ...tseslint.configs.strict,
   {
