@@ -2,7 +2,7 @@
  * `/play[?venue=<id>][&mode=daily]`: the venue manager's native path. Ensures someone is playing (guest with a loaner
  * if nobody is) and mounts the chosen native venue (default: Loose Pixels) with a `VenueHost`. The venue owns its run
  * and results screens; the shell credits Bits and stamps when a run is reported and walks back into The Sky when the
- * venue exits.
+ * venue exits. First-run coachmarks sit over the venue (the `.play` wrapper is `position: relative`).
  *
  * The venue is keyed by who plays (mode + token id), the venue, the mode and an explicit restart counter, never by the
  * identity revision: a scar or balance update after a run must not remount a venue that is showing its results.
@@ -16,6 +16,7 @@ import { ensureGuest } from "../identity/bootstrap.js";
 import { errorMessage } from "../api/client.js";
 import { navigate } from "../lib/router.js";
 import { useStore } from "../lib/store.js";
+import { Coachmarks } from "../onboarding/index.js";
 import { Card, ErrorBox, LinkButton, Loading } from "../ui/kit.js";
 import type { ReportedRun } from "./host.js";
 import { NativeVenueView } from "./NativeVenueView.js";
@@ -91,6 +92,8 @@ export default function PlayScreen({ search }: PageProps) {
         }}
         onExit={() => navigate("/sky")}
       />
+      {/* First-run hints, fed by the venue's `pl:coach` window events; never blocks the game. */}
+      <Coachmarks />
     </div>
   );
 }
