@@ -12,3 +12,4 @@ export { assertNever, fnv1a32, mulberry32 } from "./util.js";
 export * from "./meta.js";
 export * from "./sim/index.js";
 export * as PixelPutt from "./venues/pixel-putt/index.js";
+export * from "./venues/bump-sumo/index.js";
