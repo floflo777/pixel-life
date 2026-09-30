@@ -48,6 +48,8 @@ export interface FriendPublic {
   streak: number;
   lastSeen: number;
   economy: "sim" | "live";
+  /** Pixels showing Mend stitches at serve time (`visibleStitches`); absent when there are none. */
+  stitched?: Hex64;
 }
 
 /** Everything a client needs to render and reason about a Friend. `loaned` marks a guest's borrowed Friend. */

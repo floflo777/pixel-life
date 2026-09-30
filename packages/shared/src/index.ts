@@ -2,6 +2,7 @@
 export * from "./ids.js";
 export * from "./bitmap.js";
 export * from "./friend.js";
+export * from "./adornment.js";
 export * from "./economy.js";
 export * from "./seedpack.js";
 export * from "./sim-types.js";
