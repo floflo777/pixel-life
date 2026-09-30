@@ -1,0 +1,25 @@
+// Pixel Life edge Worker (architecture HOSTING DECISION): serves the static client and proxies /api/* and /ws/*
+// to the hidden origin with the shared secret. Deploy only with owner authorization: see deploy/README.md.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "pixel-life",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    // Vite build of the web shell, including the SDK child documents under /venues/<id>/.
+    "directory": "../../apps/web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // The Worker runs first on every request so it can proxy /api and /ws and add security headers
+    // (CSP for the shell, the SDK child CSP for /venues/*/game.html) to static responses.
+    "run_worker_first": true,
+  },
+  "vars": {
+    "ORIGIN_URL": "https://rf-origin.ailog.fr",
+    // Unset = DEFAULT_SHELL_CSP from src/headers.ts; "" = no shell CSP header.
+  },
+  // Secret (never in this file): `npx wrangler secret put ORIGIN_KEY` (same value as the server's ORIGIN_KEY).
+  "observability": { "enabled": true },
+}
