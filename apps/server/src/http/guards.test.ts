@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { ORIGIN, ORIGIN_KEY, cookieFrom, startHarness, type Harness } from "../test/harness.js";
+import { LATEST_MIGRATION, ORIGIN, ORIGIN_KEY, cookieFrom, startHarness, type Harness } from "../test/harness.js";
 
 let h: Harness | undefined;
 afterEach(async () => {
@@ -31,18 +31,18 @@ describe("origin-key guard", () => {
   });
 
   it("leaves liveness and readiness open for the container healthcheck", async () => {
-    h = await startHarness({ deps: { expectedMigration: "0001_init.sql" } });
+    h = await startHarness({ deps: { expectedMigration: LATEST_MIGRATION } });
     expect((await h.app.inject({ method: "GET", url: "/healthz" })).json()).toMatchObject({ status: "ok" });
     const ready = await h.app.inject({ method: "GET", url: "/readyz" });
     expect(ready.statusCode).toBe(200);
-    expect(ready.json()).toEqual({ status: "ready", db: "ok", migration: "0001_init.sql" });
+    expect(ready.json()).toEqual({ status: "ready", db: "ok", migration: LATEST_MIGRATION });
   });
 
   it("reports not ready when the schema is behind the build", async () => {
-    h = await startHarness({ deps: { expectedMigration: "0002_future.sql" } });
+    h = await startHarness({ deps: { expectedMigration: "9999_future.sql" } });
     const ready = await h.app.inject({ method: "GET", url: "/readyz" });
     expect(ready.statusCode).toBe(503);
-    expect(ready.json()).toMatchObject({ status: "not_ready", migration: "0001_init.sql" });
+    expect(ready.json()).toMatchObject({ status: "not_ready", migration: LATEST_MIGRATION });
   });
 
   it("is disabled when ORIGIN_KEY is unset (local dev)", async () => {

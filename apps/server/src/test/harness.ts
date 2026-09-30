@@ -19,6 +19,8 @@ import { createDb, type Db } from "../db/pool.js";
 export const MIGRATIONS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../migrations");
 export const ORIGIN = "https://pixel-life.test.workers.dev";
 export const ORIGIN_KEY = "k".repeat(40);
+/** Newest migration file this build ships (readiness tests). */
+export const LATEST_MIGRATION = "0011_meta.sql";
 
 /** A fresh, migrated database on the shared test cluster. `drop()` removes it. */
 export async function createTestDatabase(): Promise<{ db: Db; url: string; drop: () => Promise<void> }> {

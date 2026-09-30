@@ -895,3 +895,23 @@ export type BuyReq = z.infer<typeof buySchema>;
     }
   }
 }
+
+/** Outcome of parsing an untrusted meta request body. */
+export type MetaParse<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: string };
+
+function parseWith<T>(schema: z.ZodType<T>, raw: unknown): MetaParse<T> {
+  const r = schema.safeParse(raw);
+  if (r.success) return { ok: true, value: r.data };
+  const issue = r.error.issues[0];
+  return { ok: false, error: issue ? `${issue.path.join(".") || "body"}: ${issue.message}` : "Invalid body." };
+}
+
+/** Parses a `PUT /api/home` body (shape only; the server then applies `validateLayout`). */
+export function parseHomeSave(raw: unknown): MetaParse<HomeSaveReq> {
+  return parseWith(homeSaveSchema, raw);
+}
+
+/** Parses a `POST /api/meta/buy` body. */
+export function parseBuy(raw: unknown): MetaParse<BuyReq> {
+  return parseWith(buySchema, raw);
+}
