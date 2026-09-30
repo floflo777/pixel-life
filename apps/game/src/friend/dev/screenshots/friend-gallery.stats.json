@@ -1,0 +1,134 @@
+{
+  "rows": [
+    {
+      "friend": "#344030 Mask",
+      "lod0 tris": 354,
+      "lod0 adorned": 440,
+      "lod1 adorned": 286,
+      "setLost ms (median)": 0.1,
+      "setLost ms (max)": 0.4,
+      "venue setLost ms": 0.1
+    },
+    {
+      "friend": "#344033 Asymmetry",
+      "lod0 tris": 314,
+      "lod0 adorned": 390,
+      "lod1 adorned": 254,
+      "setLost ms (median)": 0.1,
+      "setLost ms (max)": 0.3,
+      "venue setLost ms": 0.1
+    },
+    {
+      "friend": "#344034 Cellular",
+      "lod0 tris": 258,
+      "lod0 adorned": 358,
+      "lod1 adorned": 208,
+      "setLost ms (median)": 0.2,
+      "setLost ms (max)": 0.2,
+      "venue setLost ms": 0.1
+    },
+    {
+      "friend": "#1969 Asymmetry",
+      "lod0 tris": 184,
+      "lod0 adorned": 282,
+      "lod1 adorned": 184,
+      "setLost ms (median)": 0.1,
+      "setLost ms (max)": 0.2,
+      "venue setLost ms": 0.1
+    },
+    {
+      "friend": "#63675 Skeleton",
+      "lod0 tris": 254,
+      "lod0 adorned": 376,
+      "lod1 adorned": 222,
+      "setLost ms (median)": 0.1,
+      "setLost ms (max)": 0.2,
+      "venue setLost ms": 0.1
+    },
+    {
+      "friend": "#63713 Mask",
+      "lod0 tris": 296,
+      "lod0 adorned": 394,
+      "lod1 adorned": 248,
+      "setLost ms (median)": 0.1,
+      "setLost ms (max)": 0.2,
+      "venue setLost ms": 0.1
+    },
+    {
+      "friend": "#65058 Family",
+      "lod0 tris": 208,
+      "lod0 adorned": 304,
+      "lod1 adorned": 198,
+      "setLost ms (median)": 0.1,
+      "setLost ms (max)": 0.2,
+      "venue setLost ms": 0.1
+    },
+    {
+      "friend": "#64981 Cellular",
+      "lod0 tris": 270,
+      "lod0 adorned": 324,
+      "lod1 adorned": 220,
+      "setLost ms (median)": 0.1,
+      "setLost ms (max)": 0.2,
+      "venue setLost ms": 0.1
+    },
+    {
+      "friend": "#64978 Asymmetry",
+      "lod0 tris": 202,
+      "lod0 adorned": 304,
+      "lod1 adorned": 184,
+      "setLost ms (median)": 0.1,
+      "setLost ms (max)": 0.2,
+      "venue setLost ms": 0.1
+    },
+    {
+      "friend": "#65042 Hoverer",
+      "lod0 tris": 190,
+      "lod0 adorned": 242,
+      "lod1 adorned": 176,
+      "setLost ms (median)": 0.1,
+      "setLost ms (max)": 0.2,
+      "venue setLost ms": 0.1
+    },
+    {
+      "friend": "#64998 Colossus",
+      "lod0 tris": 150,
+      "lod0 adorned": 280,
+      "lod1 adorned": 168,
+      "setLost ms (median)": 0.1,
+      "setLost ms (max)": 0.2,
+      "venue setLost ms": 0.1
+    },
+    {
+      "friend": "#65040 Sparkling",
+      "lod0 tris": 556,
+      "lod0 adorned": 584,
+      "lod1 adorned": 424,
+      "setLost ms (median)": 0.2,
+      "setLost ms (max)": 0.2,
+      "venue setLost ms": 0.1
+    },
+    {
+      "friend": "#64940 Hollow",
+      "lod0 tris": 246,
+      "lod0 adorned": 270,
+      "lod1 adorned": 212,
+      "setLost ms (median)": 0.1,
+      "setLost ms (max)": 0.2,
+      "venue setLost ms": 0.1
+    }
+  ],
+  "cache": {
+    "meshes": {
+      "live": 141,
+      "idle": 208,
+      "refs": 143
+    },
+    "impostors": {
+      "live": 13,
+      "idle": 0,
+      "refs": 13
+    }
+  },
+  "drawCalls": 20
+}

@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Friend Gallery</title>
+    <style>
+      :root {
+        --ink: #111111;
+        --paper: #eeeeee;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          11px/1.3 ui-monospace,
+          "Sometype Mono",
+          monospace;
+      }
+      #wrap {
+        position: relative;
+        margin: 16px;
+        border: 2px solid var(--ink);
+        box-shadow: 4px 4px 0 var(--ink);
+        width: max-content;
+      }
+      canvas {
+        display: block;
+        image-rendering: pixelated;
+      }
+      .lbl {
+        position: absolute;
+        padding: 1px 4px;
+        background: var(--paper);
+        border: 1px solid var(--ink);
+        white-space: nowrap;
+        text-transform: lowercase;
+      }
+      .col {
+        top: 2px;
+      }
+      #stats {
+        margin: 16px;
+        border-collapse: collapse;
+      }
+      #stats td,
+      #stats th {
+        border: 1px solid var(--ink);
+        padding: 2px 6px;
+        text-align: right;
+      }
+      #stats th {
+        background: var(--ink);
+        color: var(--paper);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="wrap"><canvas id="gl"></canvas></div>
+    <table id="stats"></table>
+    <script type="module" src="./friend-gallery.ts"></script>
+  </body>
+</html>
