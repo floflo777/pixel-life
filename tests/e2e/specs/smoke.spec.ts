@@ -9,7 +9,7 @@ test.describe("smoke", () => {
 
   test("landing renders and offers guest play within the width budget", async ({ page }) => {
     await page.goto("/");
-    await expect(page).toHaveTitle(/Pixel Life/i);
+    await expect(page).toHaveTitle(/Loose Pixels/i);
     await expect(page.getByRole("button", { name: /play now/i })).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(overflow).toBe(false);
