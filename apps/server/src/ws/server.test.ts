@@ -85,6 +85,19 @@ describe("WebSocket bootstrap /ws/room/:slug", () => {
     expect(await connect(base, "/ws/other", { ...edge, cookie })).toMatchObject({ open: false, status: 404 });
   });
 
+  it("closes a guest socket with WS_CLOSE.unauthorized when guest mode is off (D-15)", async () => {
+    const issuer = await startHarness();
+    const cookie = await guestCookie(issuer);
+    await issuer.close();
+    const rooms = createStubRoomRegistry(["plaza"]);
+    h = await startHarness({ env: { GUEST_MODE: "off" }, deps: { rooms } });
+    const base = await listen(h);
+    const outcome = await connect(base, "/ws/room/plaza", { ...edge, cookie });
+    expect(outcome.open).toBe(true);
+    if (outcome.open) expect(await closed(outcome.socket)).toBe(CLOSE_CODES.unauthorized);
+    expect(rooms.connections.size).toBe(0);
+  });
+
   it("re-checks owner eligibility at a fresh block on join and refuses a Friend that was transferred away", async () => {
     const wallet = newWallet();
     const rooms = createStubRoomRegistry(["plaza"]);

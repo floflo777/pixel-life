@@ -60,6 +60,13 @@ function hasNoCredentials(request: IncomingMessage): boolean {
 }
 
 /**
+ * A guest socket while guest mode is off (D-15 kill switch). The upgrade completes and the socket is closed with
+ * `WS_CLOSE.unauthorized`, which clients treat as terminal (an HTTP refusal would look like a network drop and be
+ * retried forever).
+ */
+class GuestModeOff extends Error {}
+
+/**
  * Resolves who is connecting (architecture §1.6 step 5, §1b.1 Join): an owner session with a binding that
  * passes a fresh-block eligibility re-check, else a guest cookie. An owner whose Friend is no longer
  * eligible is refused (403) rather than silently downgraded, so the client re-picks.
@@ -82,6 +89,7 @@ async function resolveIdentity(ctx: AppContext, request: IncomingMessage): Promi
     }
   }
   const guest = readGuest(ctx, request.headers);
+  if (guest && !ctx.config.guestMode) throw new GuestModeOff("guest mode is off");
   if (guest) return { kind: "guest", key: `guest:${guest.guestId}`, guestId: guest.guestId };
   if (session) throw new HttpError(403, "forbidden", "Pick one of your Friends first.", { reason: "no_binding" });
   throw noSession();
@@ -132,7 +140,16 @@ export function attachWebSocket(server: Server, ctx: AppContext, log: FastifyBas
       }
       const slug = match[1];
       if (!ctx.rooms.has(slug)) throw new HttpError(404, "not_found", "Unknown room.");
-      const identity = await resolveIdentity(ctx, request);
+      let identity: SocketIdentity;
+      try {
+        identity = await resolveIdentity(ctx, request);
+      } catch (error) {
+        if (!(error instanceof GuestModeOff)) throw error;
+        if (closing || socket.destroyed) return void socket.destroy();
+        log.info({ requestId, ip, slug }, "ws guest refused: guest mode off");
+        wss.handleUpgrade(request, socket, head, (ws) => ws.close(CLOSE_CODES.unauthorized, "guest mode is off"));
+        return;
+      }
       if (closing || socket.destroyed) return void socket.destroy();
       wss.handleUpgrade(request, socket, head, (ws) => {
         alive.add(ws);
