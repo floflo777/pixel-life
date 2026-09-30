@@ -19,7 +19,8 @@ const externalizeNpm = {
 await rm(new URL("../dist", import.meta.url), { recursive: true, force: true });
 await build({
   absWorkingDir: root,
-  entryPoints: { main: "src/main.ts", migrate: "src/cli/migrate.ts" },
+  // The replay worker is its own entry: worker_threads load it by URL next to main.mjs (src/runs/verifier.ts).
+  entryPoints: { main: "src/main.ts", migrate: "src/cli/migrate.ts", "replay-worker": "src/runs/replay-worker.ts" },
   outdir: "dist",
   outExtension: { ".js": ".mjs" },
   bundle: true,

@@ -171,7 +171,7 @@ describe("SIWE sign-in", () => {
     });
     const response = await verify(harness, await signedSiwe(harness, wallet));
     expect(response.statusCode).toBe(503);
-    expect(response.json()).toMatchObject({ error: "internal", reason: "rpc_error" });
+    expect(response.json()).toMatchObject({ error: "unavailable", reason: "rpc_error" });
   });
 
   it("rejects malformed bodies", async () => {
@@ -200,7 +200,7 @@ describe("sessions", () => {
     expect(String(logout.headers["set-cookie"])).toContain("Max-Age=0");
     const after = await bindFriend(harness, cookie, MASK);
     expect(after.statusCode).toBe(401);
-    expect(after.json()).toMatchObject({ error: "unauthorized", reason: "no_session" });
+    expect(after.json()).toMatchObject({ error: "no_session", reason: "no_session" });
   });
 
   it("rejects a tampered or expired session cookie", async () => {
@@ -284,7 +284,7 @@ describe("POST /api/session/friend (fresh-block eligibility)", () => {
     harness.rpc.world.setFault({ kind: "http-error", status: 502 });
     const response = await bindFriend(harness, cookie, MASK);
     expect(response.statusCode).toBe(503);
-    expect(response.json()).toMatchObject({ error: "internal", reason: "rpc_error" });
+    expect(response.json()).toMatchObject({ error: "unavailable", reason: "rpc_error" });
     expect(await harness.db.kysely.selectFrom("friend_bindings").selectAll().execute()).toEqual([]);
   });
 

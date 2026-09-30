@@ -63,15 +63,17 @@ export function createRateLimiter(spec: BucketSpec, now: () => number = Date.now
 }
 
 /** Rate-limit scopes from architecture §4.5. */
-export type RateScope = "auth" | "guest" | "writes" | "economy" | "wsConnect";
+export type RateScope = "auth" | "guest" | "writes" | "economy" | "wsConnect" | "runSubmit";
 
-/** Default limits (architecture §4.5): per minute, keyed by IP (auth, guest, wsConnect) or address. */
+/** Default limits (architecture §4.5), keyed by IP (auth, guest, wsConnect), address or run entrant. */
 export const DEFAULT_LIMITS: Readonly<Record<RateScope, BucketSpec>> = {
   auth: { capacity: 10, windowMs: 60_000 },
   guest: { capacity: 5, windowMs: 60_000 },
   writes: { capacity: 60, windowMs: 60_000 },
   economy: { capacity: 20, windowMs: 60_000 },
   wsConnect: { capacity: 6, windowMs: 60_000 },
+  /** Run submissions: 1 per 40 s per entrant (a run lasts 60 s, so honest play never hits it). */
+  runSubmit: { capacity: 1, windowMs: 40_000 },
 };
 
 /** One limiter per scope. */
@@ -89,5 +91,6 @@ export function createRateLimiters(
     writes: make("writes"),
     economy: make("economy"),
     wsConnect: make("wsConnect"),
+    runSubmit: make("runSubmit"),
   };
 }

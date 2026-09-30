@@ -61,7 +61,7 @@ export async function readSession(ctx: AppContext, headers: IncomingHttpHeaders)
 /** Like {@link readSession} but throws 401 `no_session`. */
 export async function requireSession(ctx: AppContext, headers: IncomingHttpHeaders): Promise<OwnerSession> {
   const session = await readSession(ctx, headers);
-  if (!session) throw new HttpError(401, "unauthorized", "Sign in with your wallet first.", { reason: "no_session" });
+  if (!session) throw new HttpError(401, "no_session", "Sign in with your wallet first.", { reason: "no_session" });
   return session;
 }
 

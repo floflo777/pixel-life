@@ -1,7 +1,7 @@
 import type { ColumnType, Generated } from "kysely";
 
 /**
- * Kysely table types for migrations/0001_init.sql. Type mapping (see db/pool.ts parsers):
+ * Kysely table types for migrations/0001_init.sql + 0002_game.sql. Type mapping (see db/pool.ts parsers):
  * numeric → decimal string, int8 → JS number (safe range enforced), date → "YYYY-MM-DD",
  * timestamptz → Date, bytea → Buffer, jsonb → parsed JSON.
  */
@@ -71,6 +71,13 @@ export interface RunsTable {
   final_hash: string;
   verified: Defaulted<-1 | 0 | 1>;
   created_at: Date;
+  arena: Defaulted<string>;
+  venue_id: Defaulted<string>;
+  sim_friend: ColumnType<Json | null, string | null | undefined, string | null>;
+  applied_lost: Defaulted<string | null>;
+  bits: Defaulted<number>;
+  verified_at: Defaulted<Date | null>;
+  replay_hash: Defaulted<string | null>;
 }
 
 export interface DailyBestTable {
@@ -112,6 +119,7 @@ export interface SeedpackHouseTable {
   stake_micro: number;
   reserved_micro: number;
   liability_micro: number;
+  packs_sold: Defaulted<number>;
 }
 
 export interface SeedpackFriendTable {
@@ -123,6 +131,8 @@ export interface SeedpackFriendTable {
 export interface SeedpackPlaysTable {
   id: Generated<number>;
   token_id: TokenIdColumn;
+  /** Per-Friend SDK play id (1-based), as `createGamePreview` numbers plays. */
+  play_no: number;
   outcome_id: number | null;
   created_at: Date;
   settled_at: Date | null;
@@ -131,6 +141,43 @@ export interface SeedpackPlaysTable {
 export interface ChainCursorTable {
   name: string;
   block: number;
+}
+
+export interface FriendAppearanceTable {
+  token_id: TokenIdColumn;
+  registry: AddressColumn;
+  family_id: number;
+  seed: number;
+  frames: ColumnType<Json, string, string>;
+  fetched_at: Date;
+}
+
+export interface EconomyQuotesTable {
+  id: string;
+  kind: "regrow" | "mend";
+  payer_token: TokenIdColumn;
+  subject_token: TokenIdColumn;
+  pixels: string;
+  total: string;
+  created_at: Date;
+  locked_until: Date;
+  consumed_at: Date | null;
+}
+
+export interface StitchesTable {
+  id: Generated<number>;
+  target_token: TokenIdColumn;
+  payer_token: TokenIdColumn;
+  pixels: string;
+  at: Date;
+}
+
+export interface BitsAccountsTable {
+  account: string;
+  balance: Defaulted<number>;
+  earned_day: DayColumn | null;
+  earned_today: Defaulted<number>;
+  updated_at: Date;
 }
 
 /** The whole database, as Kysely sees it. */
@@ -147,4 +194,8 @@ export interface Database {
   seedpack_friend: SeedpackFriendTable;
   seedpack_plays: SeedpackPlaysTable;
   chain_cursor: ChainCursorTable;
+  friend_appearance: FriendAppearanceTable;
+  economy_quotes: EconomyQuotesTable;
+  stitches: StitchesTable;
+  bits_accounts: BitsAccountsTable;
 }

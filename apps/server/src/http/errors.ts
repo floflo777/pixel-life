@@ -21,7 +21,29 @@ export type ErrorReason =
   | "origin_key"
   | "shutting_down"
   | "payload_too_large"
-  | "unsupported_media_type";
+  | "unsupported_media_type"
+  // ── game API (T7b) ──
+  | "unknown_friend"
+  | "sim_only"
+  | "live_only"
+  | "run_cooldown"
+  | "daily_limit"
+  | "wrong_day"
+  | "bad_seed"
+  | "bad_inputs"
+  | "payer_cap"
+  | "target_cap"
+  | "not_payer"
+  | "unknown_quote"
+  | "tx_pending"
+  | "tx_failed"
+  | "unknown_play"
+  | "already_settled"
+  | "insufficient_consumables"
+  | "insufficient_inventory"
+  | "unknown_outcome"
+  | "no_redemption_value"
+  | "invalid_quantity";
 
 /** Error body of every non-2xx response: the shared `ApiError` plus `reason` and the request id. */
 export interface ErrorBody extends ApiError {
