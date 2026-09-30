@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { ADMIN_PATH, applyAdminOp } from "./admin.js";
 import { handleRequest, type JsonRpcRequest, type JsonRpcResponse } from "./rpc.js";
 import { MockWorld, type WorldSpec } from "./world.js";
 
@@ -11,6 +12,11 @@ export interface MockRpcOptions {
   readonly host?: string;
   /** An existing world (shared, mutable) or a spec to build one from. */
   readonly world?: MockWorld | WorldSpec;
+  /**
+   * Serve `POST /__admin` (mint, transfer, mine, fund, fault, ...; see `admin.ts`) so out-of-process callers such as
+   * Playwright workers can drive a shared world. Off by default; only for loopback test stacks.
+   */
+  readonly admin?: boolean;
 }
 
 /** A running mock RPC. `close()` resolves once all sockets are gone. */
@@ -55,7 +61,7 @@ const parseError = (message: string): JsonRpcResponse => ({
 });
 
 /** Handles one HTTP exchange: CORS preflight, GET health, POST single or batch JSON-RPC. */
-async function onRequest(world: MockWorld, req: IncomingMessage, res: ServerResponse) {
+async function onRequest(world: MockWorld, admin: boolean, req: IncomingMessage, res: ServerResponse) {
   if (req.method === "OPTIONS") {
     res.writeHead(204, CORS_HEADERS);
     res.end();
@@ -76,6 +82,15 @@ async function onRequest(world: MockWorld, req: IncomingMessage, res: ServerResp
     send(res, 400, parseError(error instanceof Error ? error.message : "parse error"));
     return;
   }
+  if (admin && req.url?.split("?")[0] === ADMIN_PATH) {
+    try {
+      send(res, 200, applyAdminOp(world, payload));
+    } catch (error) {
+      // AdminError (bad request) and MockWorld's own errors (e.g. invalid recipient) are both caller mistakes.
+      send(res, 400, { error: error instanceof Error ? error.message : String(error) });
+    }
+    return;
+  }
   const requests = (Array.isArray(payload) ? payload : [payload]) as JsonRpcRequest[];
   const fault = world.fault;
   if (fault?.kind === "http-error" && requests.some((r) => !fault.methods || fault.methods.includes(r.method))) {
@@ -93,7 +108,7 @@ async function onRequest(world: MockWorld, req: IncomingMessage, res: ServerResp
 export async function startMockRpc(options: MockRpcOptions = {}): Promise<MockRpcServer> {
   const world = options.world instanceof MockWorld ? options.world : new MockWorld(options.world);
   const server = createServer((req, res) => {
-    onRequest(world, req, res).catch((error: unknown) => {
+    onRequest(world, options.admin === true, req, res).catch((error: unknown) => {
       if (!res.headersSent) send(res, 500, parseError(error instanceof Error ? error.message : String(error)));
       else res.destroy();
     });

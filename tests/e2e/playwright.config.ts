@@ -1,40 +1,83 @@
 import { existsSync } from "node:fs";
-import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices, webkit, type PlaywrightTestConfig } from "@playwright/test";
+import { API_PORT, API_URL, REMOTE_URL, RPC_PORT, SHARED_RPC_URL, WEB_PORT, WEB_URL } from "./env/stack.js";
 
 /**
- * The web app URL. Set PL_WEB_URL to test a running app (e.g. staging); otherwise, once apps/web
- * has an index.html, Playwright starts its Vite dev server itself.
+ * Two modes:
+ *  - local stack (default): Playwright starts the shared mock chain, apps/server (fresh Postgres, migrations, test
+ *    secrets, RPC → mock) and a `vite preview` of the production web build proxying /api and /ws to the server;
+ *  - remote (`PL_WEB_URL=https://…`, `npm run smoke:prod`): nothing is started and only read-only specs run.
  */
-const webUrl = process.env.PL_WEB_URL ?? "http://127.0.0.1:5173";
-const startWeb = !process.env.PL_WEB_URL && existsSync(new URL("../../apps/web/index.html", import.meta.url));
+const ci = !!process.env["CI"];
+const baseURL = REMOTE_URL ?? WEB_URL;
+/** WebKit runs when its binary is installed (CI installs it with system deps; `npm run e2e:install` locally). */
+const hasWebKit = existsSync(webkit.executablePath());
+
+const webServer: PlaywrightTestConfig["webServer"] = REMOTE_URL
+  ? undefined
+  : [
+      {
+        name: "mock-rpc",
+        command: `npm start -w @pl/mock-rpc -- --port ${RPC_PORT} --admin`,
+        cwd: "../..",
+        url: SHARED_RPC_URL,
+        reuseExistingServer: !ci,
+        timeout: 30_000,
+        stdout: "ignore",
+      },
+      {
+        name: "server",
+        command: "node --import tsx env/server.ts",
+        url: `${API_URL}/readyz`,
+        reuseExistingServer: !ci,
+        timeout: 120_000,
+        stdout: "pipe",
+        gracefulShutdown: { signal: "SIGTERM", timeout: 15_000 },
+      },
+      {
+        name: "web",
+        command:
+          (process.env["E2E_SKIP_BUILD"] ? "" : "npm run build:all -w @pl/web && ") +
+          `npm run preview -w @pl/web -- --host 127.0.0.1 --port ${WEB_PORT} --strictPort`,
+        cwd: "../..",
+        url: WEB_URL,
+        env: { PL_API_URL: API_URL },
+        reuseExistingServer: !ci,
+        timeout: 180_000,
+      },
+    ];
 
 export default defineConfig({
   testDir: "./specs",
   outputDir: "./test-results",
   fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  ...(process.env.CI ? { workers: 2 } : {}),
-  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
+  forbidOnly: ci,
+  retries: ci ? 1 : 0,
+  ...(ci ? { workers: 2 } : {}),
+  timeout: 45_000,
+  expect: { timeout: 10_000 },
+  reporter: ci ? [["list"], ["html", { open: "never" }]] : "list",
+  metadata: { apiPort: API_PORT },
   use: {
-    baseURL: webUrl,
+    baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    // WebGL through SwiftShader: the stage, the hub and the venues render in headless CI too.
+    launchOptions: { args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] },
   },
   projects: [
     { name: "desktop-chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile-pixel7", use: { ...devices["Pixel 7"] } },
-    { name: "mobile-iphone13", use: { ...devices["iPhone 13"] } },
+    ...(hasWebKit
+      ? [
+          {
+            name: "mobile-iphone13",
+            use: { ...devices["iPhone 13"], launchOptions: {} },
+            // Only the guest and read-only specs: the full wallet flows are covered by the Chromium projects.
+            testMatch: /(web-guest|smoke|economy-pages)\.spec\.ts$/,
+          },
+        ]
+      : []),
   ],
-  ...(startWeb
-    ? {
-        webServer: {
-          command: "npm run dev -w @pl/web -- --host 127.0.0.1 --port 5173 --strictPort",
-          cwd: "../..",
-          url: webUrl,
-          reuseExistingServer: !process.env.CI,
-          timeout: 120_000,
-        },
-      }
-    : {}),
+  ...(webServer ? { webServer } : {}),
 });

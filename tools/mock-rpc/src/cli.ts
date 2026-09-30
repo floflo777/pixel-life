@@ -2,10 +2,11 @@
 /**
  * pl-mock-rpc: run the fixture Robinhood Chain RPC for local dev.
  *
- *   npm start -w @pl/mock-rpc -- [--port 8545] [--host 127.0.0.1] [--owner 0xYourAddr[:id,id]]...
+ *   npm start -w @pl/mock-rpc -- [--port 8545] [--host 127.0.0.1] [--owner 0xYourAddr[:id,id]]... [--admin]
  *
  * Without --owner, the default world is used (alice/bob fixture owners hold all design Friends).
  * Each --owner gives that address the listed design token ids (or 2 unclaimed ones if none listed).
+ * --admin serves `POST /__admin` (mint/transfer/mine/fund/fault) for the e2e stack; never use it on a shared host.
  */
 import { parseArgs } from "node:util";
 import { isAddress } from "viem";
@@ -18,12 +19,13 @@ const { values } = parseArgs({
     port: { type: "string", default: "8545" },
     host: { type: "string", default: "127.0.0.1" },
     owner: { type: "string", multiple: true, default: [] },
+    admin: { type: "boolean", default: false },
     help: { type: "boolean", short: "h", default: false },
   },
 });
 
 if (values.help) {
-  console.log("Usage: pl-mock-rpc [--port 8545] [--host 127.0.0.1] [--owner 0xAddr[:tokenId,tokenId]]...");
+  console.log("Usage: pl-mock-rpc [--port 8545] [--host 127.0.0.1] [--owner 0xAddr[:tokenId,tokenId]]... [--admin]");
   process.exit(0);
 }
 
@@ -42,9 +44,11 @@ for (const entry of values.owner) {
   owners[address] = ids;
 }
 
-const server = await startMockRpc({ port, host: values.host, world: defaultWorldSpec(owners) });
+const server = await startMockRpc({ port, host: values.host, world: defaultWorldSpec(owners), admin: values.admin });
 const { world } = server;
-console.log(`pl-mock-rpc listening on ${server.url} (chain ${world.chainId}, head ${world.head})`);
+console.log(
+  `pl-mock-rpc listening on ${server.url} (chain ${world.chainId}, head ${world.head})${values.admin ? " [admin on]" : ""}`,
+);
 const byOwner = new Map<string, string[]>();
 for (const id of world.friends.keys()) {
   const owner = world.ownerOf(id) ?? "none";
