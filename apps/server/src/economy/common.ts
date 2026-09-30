@@ -25,6 +25,7 @@ import type { AppContext } from "../context.js";
 import { activeLocks, casWriteScars, goldHeldOf, readFriend, storedScars, type FriendRow } from "../game/state.js";
 import { HttpError } from "../http/errors.js";
 import { recordMendNotice } from "../inbox/store.js";
+import { onMendGiven } from "../meta/hooks.js";
 import type { Executor } from "../repos/index.js";
 import type { FriendBinding } from "../repos/index.js";
 import { mendRegion } from "./region.js";
@@ -195,7 +196,11 @@ export async function mendedToday(
   return Number(row.px);
 }
 
-/** Effects of a Mend beyond the payment: the stitch record and the target's inbox notice. */
+/**
+ * Effects of a Mend beyond the payment: the stitch record, the meta counters of both Friends (First Stitch, Kind
+ * Stranger, Well Loved; locked after the Friend rows, in token order) and the target's inbox notice. Shared by the sim
+ * and live paths, inside their transaction.
+ */
 export async function recordMend(
   db: Executor,
   args: {
@@ -213,6 +218,7 @@ export async function recordMend(
     .insertInto("stitches")
     .values({ target_token: args.target.token_id, payer_token: args.payer, pixels: args.pixels, at: args.now })
     .execute();
+  await onMendGiven(db, args.payer, args.target.token_id, popcount(args.pixels), args.now);
   return recordMendNotice(
     db,
     args.target.token_id,

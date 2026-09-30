@@ -8,8 +8,10 @@
 import { z } from "zod";
 import type { EconomyAction, EconomyMode, EconomyQuote, EconomyReceipt } from "./economy.js";
 import type { FriendAppearance, FriendPublic, FriendView, ScarState } from "./friend.js";
-import { type FamilyId, isHex64, isTokenIdStr, type TokenIdStr } from "./ids.js";
+import { type FamilyId, type Hex64, isHex64, isTokenIdStr, type TokenIdStr } from "./ids.js";
+import type { MarketInboxItem } from "./market.js";
 import { RUN_TICKS, type RunKind, type RunSummary } from "./sim-types.js";
+import { fnv1a32 } from "./util.js";
 
 // ── Hub constants ──────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -154,7 +156,9 @@ export type InboxItem =
   | (InboxBase & { kind: "whole" })
   | (InboxBase & { kind: "badge"; day: string; tier: "gold" | "silver" })
   | (InboxBase & { kind: "daily"; day: string })
-  | (InboxBase & { kind: "streak_risk"; streak: number });
+  | (InboxBase & { kind: "streak_risk"; streak: number })
+  /** A SIMULATED Gold market sale (seller) or royalty (origin Friend), written by the market. Additive. */
+  | MarketInboxItem;
 
 /** Tag of an inbox item. */
 export type InboxKind = InboxItem["kind"];
@@ -241,6 +245,8 @@ export interface MeRes {
   economy: EconomyMode;
   /** Account Bits balance (owners only; guests keep Bits locally). Additive. */
   bits?: number;
+  /** False when the server's guest-mode kill switch is off (D-15): hide "play as guest". Additive. */
+  guestMode?: boolean;
 }
 
 /** `GET /api/friends/:id/appearance` (immutable). */
@@ -259,13 +265,59 @@ export interface RunSubmitReq {
   claimed: RunSummary;
   /** Sim arena (island) the run was played on; default `meadow`. Additive: needed to replay the run. */
   arena?: string;
+  /**
+   * The Fling Belt whose trial this run was (GDD §12.4). Additive. Only honoured for a free Loose Pixels run played on
+   * `beltTrialSeed(beltTrial)`; the belt is awarded after replay verification if the run meets its requirement.
+   */
+  beltTrial?: string;
+  /**
+   * The scars the client started the run with (`effectiveLost` as it saw them at run start). Additive. Sent with
+   * `startedAt`, it lets the server replay the run against the Friend the player actually flew: pixels that regrew (or
+   * locks the client could not see) between start and submission otherwise make an honest run replay as a mismatch.
+   * The server only uses it when plausible (see the server's `plausibleStartLost`); scars are still applied against
+   * the server's own state.
+   */
+  startLost?: Hex64;
+  /** When the run started (epoch ms, client clock). Additive; only meaningful with `startLost`. */
+  startedAt?: number;
+}
+
+/**
+ * Venues whose runs play the deterministic Loose Pixels sim: the server replays them and they affect scars, stamps and
+ * belts. The handheld plays the same sim, so its runs count as Pixel Life runs for stamps and belts.
+ */
+export const SCAR_VENUES = Object.freeze(["pixel-life", "handheld"] as const);
+/**
+ * Venues whose runs only earn Bits (under a per-venue daily cap) and are not replayed yet: their scores are
+ * client-claimed, so they never touch scars, stamps, belts or boards. Free runs only.
+ */
+export const BITS_ONLY_VENUES = Object.freeze(["bump-sumo", "pixel-putt"] as const);
+/** A venue id `POST /api/runs` accepts. */
+export type RunVenueId = (typeof SCAR_VENUES)[number] | (typeof BITS_ONLY_VENUES)[number];
+
+/** True if `id` is a venue `POST /api/runs` accepts. */
+export function isRunVenue(id: string): id is RunVenueId {
+  return (SCAR_VENUES as readonly string[]).includes(id) || (BITS_ONLY_VENUES as readonly string[]).includes(id);
+}
+
+/** The fixed seed of a Fling Belt trial (same for everyone, forever): FNV-1a of `pixel-life/belt/<id>`. */
+export function beltTrialSeed(beltId: string): number {
+  return fnv1a32(`pixel-life/belt/${beltId}`);
 }
 
 /** Replay verification state of a run (`runs.verified`: 0 / 1 / -1). */
 export type RunVerification = "pending" | "ok" | "mismatch";
 
 /** Why a run's scars were not persisted, when `applied` is false. */
-export type RunNotAppliedReason = "guest" | "practice" | "newbie" | "floor" | "unverified" | "not_owner";
+export type RunNotAppliedReason =
+  | "guest"
+  | "practice"
+  | "newbie"
+  | "floor"
+  | "unverified"
+  | "not_owner"
+  /** The venue never affects scars (`BITS_ONLY_VENUES`). Additive. */
+  | "no_scars";
 
 /** `POST /api/runs` → acknowledgement (`ResultAck` for venues). `scars` is the owner Friend's state after the run. */
 export interface RunAck {
@@ -541,6 +593,12 @@ export const requestSchemas = {
       inputs: z.base64().max(MAX_INPUTS_B64),
       claimed: runSummarySchema,
       arena: venueIdSchema.exactOptional(),
+      beltTrial: z
+        .string()
+        .regex(/^[a-z_]{1,32}$/)
+        .exactOptional(),
+      startLost: hex64Schema.exactOptional(),
+      startedAt: int(0, Number.MAX_SAFE_INTEGER).exactOptional(),
     })
     .refine((r) => r.kind !== "daily" || r.day !== undefined, { message: "daily runs need a day", path: ["day"] }),
   "GET /api/daily/:day/board": z.object({ board: z.enum(["owners", "visitors"]) }),

@@ -14,6 +14,7 @@ import { requireSession } from "../auth/session.js";
 import type { AppContext } from "../context.js";
 import { HttpError } from "../http/errors.js";
 import { enforceRateLimit } from "../http/guards.js";
+import { onGoldKept } from "../meta/hooks.js";
 import type { FriendBinding } from "../repos/index.js";
 import { MarketError } from "./errors.js";
 import { buyGold, cancelListing, listGold, mine, orderBook, type MarketEffects } from "./store.js";
@@ -144,9 +145,14 @@ export const marketRoutes: FastifyPluginAsync<MarketRoutesOptions> = async (app,
   app.post("/api/market/buy", async (request): Promise<MarketBuyRes> => {
     const { leafId, expectedPriceMicro } = parse(marketSchemas.buy, request.body);
     const binding = await owner(request, true);
-    const result = await db
-      .transaction()
-      .execute((trx) => buyGold(trx, { buyer: binding.tokenId, leafId, expectedPriceMicro, now: ctx.now() }));
+    const now = ctx.now();
+    const result = await ctx.db.kysely.transaction().execute(async (trx) => {
+      const bought = await buyGold(withMarket(trx), { buyer: binding.tokenId, leafId, expectedPriceMicro, now });
+      // The buyer now keeps a Gold Pixel on its Friend: same meta event as a Gold kept from a Seed Pack (Gold Keeper).
+      // Taken last, after every market lock, like every other meta hook.
+      await onGoldKept(trx, binding.tokenId, now);
+      return bought;
+    });
     request.log.info({ leafId, buyer: binding.tokenId, price: result.fill.priceMicro }, "market sale (simulated)");
     publish(result.effects);
     return { simulated: true, fill: result.fill, goldHeld: result.goldHeld, balanceMicro: result.balanceMicro };

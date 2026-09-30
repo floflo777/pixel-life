@@ -11,7 +11,7 @@ import {
 } from "../auth/session.js";
 import { issueNonce, verifySiwe } from "../auth/siwe.js";
 import type { AppContext } from "../context.js";
-import { validated } from "../http/errors.js";
+import { HttpError, validated } from "../http/errors.js";
 import { enforceRateLimit } from "../http/guards.js";
 
 /**
@@ -46,6 +46,11 @@ export function registerAuthRoutes(app: FastifyInstance, ctx: AppContext): void 
   });
 
   app.post("/api/guest", async (request, reply): Promise<GuestRes> => {
+    if (!ctx.config.guestMode) {
+      throw new HttpError(403, "guest_forbidden", "Guest mode is switched off. Connect a wallet to play.", {
+        reason: "guest_mode_off",
+      });
+    }
     const existing = readGuest(ctx, request.headers);
     if (existing) return { guestId: existing.guestId };
     enforceRateLimit(ctx.limiters.guest, `ip:${request.clientIp}`);

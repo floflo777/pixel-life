@@ -93,6 +93,7 @@ describe("GET /api/me", () => {
       balanceMicro: null,
       unread: 0,
       economy: "sim",
+      guestMode: true,
     });
     const gc = await guest(h);
     expect((await call(h, "GET", "/api/me", gc)).json().identity).toMatchObject({ kind: "guest" });

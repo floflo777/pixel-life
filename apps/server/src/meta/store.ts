@@ -93,28 +93,6 @@ export async function ownedItems(db: Executor, account: string, tokenId: TokenId
   return owned;
 }
 
-/** Bits balance of an account (0 without a row). */
-export async function bitsBalance(db: Executor, account: string): Promise<number> {
-  const row = await metaDb(db)
-    .selectFrom("bits_accounts")
-    .select("balance")
-    .where("account", "=", account.toLowerCase())
-    .executeTakeFirst();
-  return row?.balance ?? 0;
-}
-
-/** Conditional Bits debit; returns the new balance, or null when the balance is too low (never goes negative). */
-export async function debitBits(db: Executor, account: string, amount: number, now: Date): Promise<number | null> {
-  const row = await metaDb(db)
-    .updateTable("bits_accounts")
-    .set({ balance: sql<number>`balance - ${amount}`, updated_at: now })
-    .where("account", "=", account.toLowerCase())
-    .where("balance", ">=", amount)
-    .returning("balance")
-    .executeTakeFirst();
-  return row ? row.balance : null;
-}
-
 /** The public view of a Friend's isle: layout, hat, belt and stamp book. */
 export async function homeView(db: Executor, tokenId: TokenIdStr): Promise<HomeView> {
   const m = metaDb(db);

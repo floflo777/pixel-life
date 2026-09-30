@@ -29,6 +29,10 @@ export function inboxText(n: InboxItem): string {
       return `Today's island is live (${n.day}).`;
     case "streak_risk":
       return `Your ${n.streak}-day halo fades tomorrow.`;
+    case "market_sold":
+      return `#${n.buyer} bought #${n.tokenId}'s Gold Pixel for ${formatRf(n.priceMicro)} (simulated).`;
+    case "market_royalty":
+      return `A Gold Pixel #${n.tokenId} grew sold again: ${formatRf(n.toOriginMicro)} royalty (simulated).`;
   }
 }
 

@@ -7,6 +7,7 @@ import {
   maxPersistedLost,
   or,
   popcount,
+  regrowthMsPerPx,
   runScarCap,
   toIndices,
   type RunAck,
@@ -319,7 +320,14 @@ describe("replay verification", () => {
       const inputs = [{ t: 30, k: 0, ang: 1024, pow: 800 }];
       const claimed = api["replay"]?.(config, inputs) as RunSubmitReq["claimed"];
       const b64 = Buffer.from(api["encodeInputs"]?.(inputs) as Uint8Array).toString("base64");
-      expect((await pool.verify({ config: config as never, inputs: b64, claimed })).status).toBe("ok");
+      const verified = await pool.verify({ config: config as never, inputs: b64, claimed });
+      expect(verified.status).toBe("ok");
+      // The verified run is tallied for stamps and belts by a second, event-recording pass in the worker.
+      expect(verified.status === "ok" ? verified.tally : undefined).toMatchObject({
+        grabbedBack: expect.any(Number),
+        maxCombo: expect.any(Number),
+        gulpBurped: expect.any(Boolean),
+      });
       const tampered = { ...claimed, score: claimed.score + 1 };
       expect((await pool.verify({ config: config as never, inputs: b64, claimed: tampered })).status).toBe("mismatch");
       await pool.close();
@@ -332,6 +340,53 @@ describe("replay verification", () => {
     await call(g.h, "POST", "/api/runs", await guest(g.h), run());
     await waitIdle(g);
     expect(verifier.calls).toBe(0);
+  });
+});
+
+describe("replay start state", () => {
+  it("replays from the client's run-start scars when plausible, else from the server's; scars use the server's", async () => {
+    g = await startGame();
+    const { h, alice } = g;
+    const cookie = await owner(h, alice, MASK);
+    await skipNewbie(h, MASK);
+    const front = frontMask(await art(h, MASK));
+    const three = fromIndices(toIndices(front).slice(0, 3));
+    // Scarred just over one regrowth interval ago: one of the three has regrown by now.
+    await setFriend(h, MASK, { lost: three });
+    await h.db.kysely
+      .updateTable("friends")
+      .set({ scar_updated_at: new Date(h.clock.now().getTime() - regrowthMsPerPx(0) - 10_000) })
+      .where("token_id", "=", MASK.toString())
+      .execute();
+    const startedAt = h.clock.now().getTime() - 30_000;
+    const simFriendLost = async (ack: RunAck) =>
+      (
+        (
+          await h.db.kysely
+            .selectFrom("runs")
+            .select("sim_friend")
+            .where("id", "=", ack.runId)
+            .executeTakeFirstOrThrow()
+        ).sim_friend as { lost: string }
+      ).lost;
+
+    const honest = (await call(h, "POST", "/api/runs", cookie, run({ startLost: three, startedAt }))).json() as RunAck;
+    expect(await simFriendLost(honest)).toBe(three);
+    // The applied scars still start from the server's state (two lost): no new pixel was claimed, none applied.
+    expect(popcount(honest.scars?.lost ?? EMPTY_MASK)).toBe(2);
+
+    // Implausible: claims to have started whole although two pixels are lost now → server state.
+    const whole = (
+      await call(h, "POST", "/api/runs", cookie, run({ startLost: EMPTY_MASK, startedAt }))
+    ).json() as RunAck;
+    expect(popcount(await simFriendLost(whole))).toBe(2);
+    // Stale start → server state.
+    const stale = (
+      await call(h, "POST", "/api/runs", cookie, run({ startLost: three, startedAt: startedAt - 3_600_000 }))
+    ).json() as RunAck;
+    expect(popcount(await simFriendLost(stale))).toBe(2);
+    // Without the fields: unchanged behaviour.
+    expect(popcount(await simFriendLost((await call(h, "POST", "/api/runs", cookie, run())).json() as RunAck))).toBe(2);
   });
 });
 

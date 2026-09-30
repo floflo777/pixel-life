@@ -26,6 +26,7 @@ import { readGuest, readSession, requireSession } from "../auth/session.js";
 import type { AppContext } from "../context.js";
 import { dailySeed, nextMidnightUtc, utcDay } from "../game/daily.js";
 import { bitsBalance, grantDailySim, simBalance } from "../game/wallet.js";
+import { observeWhole } from "../game/whole.js";
 import { HttpError, validated } from "../http/errors.js";
 import { enforceRateLimit } from "../http/guards.js";
 import { itemFromRow, unreadCount } from "../inbox/store.js";
@@ -82,6 +83,10 @@ export function registerWorldRoutes(app: FastifyInstance, ctx: AppContext): void
       let unread = 0;
       if (binding) {
         if (economy === "sim") await grantDailySim(ctx.db.kysely, binding.tokenId, utcDay(ctx.now()));
+        // The owner's daily touch point: credit the whole streak (Whole Week / Whole Moon). Never fails `/api/me`.
+        await observeWhole(ctx.db.kysely, binding.tokenId, ctx.now()).catch((error: unknown) =>
+          request.log.warn({ err: error, tokenId: binding.tokenId }, "whole streak check failed"),
+        );
         friend = await ctx.friends.view(binding.tokenId);
         balanceMicro = economy === "sim" ? await simBalance(ctx.db.kysely, binding.tokenId) : null;
         unread = await unreadCount(ctx.db.kysely, binding.tokenId);
@@ -93,15 +98,17 @@ export function registerWorldRoutes(app: FastifyInstance, ctx: AppContext): void
         unread,
         economy,
         bits: await bitsBalance(ctx.db.kysely, session.address),
+        guestMode: ctx.config.guestMode,
       };
     }
-    const guest = readGuest(ctx, request.headers);
+    const guest = ctx.config.guestMode ? readGuest(ctx, request.headers) : null;
     return {
       identity: guest ? { kind: "guest", guestId: guest.guestId } : { kind: "anon" },
       friend: null,
       balanceMicro: null,
       unread: 0,
       economy,
+      guestMode: ctx.config.guestMode,
     };
   });
 

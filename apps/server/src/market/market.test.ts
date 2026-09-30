@@ -182,7 +182,10 @@ describe("listing", () => {
   });
 
   it("is refused outside sim mode", async () => {
-    const { harness, alice } = await market({ env: { ECONOMY_MODE: "live" } });
+    // Live mode needs a sink address to boot (config validation); any address will do, nothing is paid here.
+    const { harness, alice } = await market({
+      env: { ECONOMY_MODE: "live", PIXEL_LIFE_SINK: "0x00000000000000000000000000000000000051a1" },
+    });
     await setGold(harness, alice, 1);
     const response = await list(harness, alice, 50 * RF);
     expect(response.statusCode).toBe(503);

@@ -19,6 +19,10 @@ export function inboxCopy(item: InboxItem): string {
       return `today's island is live (${item.day}).`;
     case "streak_risk":
       return `your ${item.streak}-day halo fades tomorrow.`;
+    case "market_sold":
+      return `#${item.buyer} bought #${item.tokenId}'s gold pixel for ${formatRf(item.priceMicro)} (simulated).`;
+    case "market_royalty":
+      return `a gold pixel #${item.tokenId} grew sold again: ${formatRf(item.toOriginMicro)} royalty (simulated).`;
     default:
       return assertNever(item);
   }
