@@ -3,15 +3,7 @@
  * reads `SimView` / `SimEvent` from `@pl/shared` directly; this file only adds the injectable module shape (tests can
  * wrap the sim, e.g. to count steps) and readable names for the contract's numeric codes.
  */
-import {
-  createSim,
-  encodeInputs,
-  SIM_VERSION,
-  SimTuning,
-  type SimConfig,
-  type SimInput,
-  type Sim,
-} from "@pl/shared";
+import { createSim, encodeInputs, SIM_VERSION, SimTuning, type SimConfig, type SimInput, type Sim } from "@pl/shared";
 
 /** A sim implementation: `createSim` + `encodeInputs` with the `@pl/shared` signatures. */
 export interface SimModule {

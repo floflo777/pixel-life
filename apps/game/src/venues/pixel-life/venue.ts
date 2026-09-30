@@ -25,7 +25,7 @@ import type { NativeVenue, VenueHost, VenueInstance, VenueManifest } from "@pl/v
 import { RUN_POSE, type OrbitPose } from "../../stage/camera-rig";
 import type { SharedStage as GameStage } from "../../stage/stage";
 import type { InputEvent } from "../../stage/input";
-import { previewDistances, previewPoints } from "./aim";
+import { powerForDistance, previewDistances, previewPoints } from "./aim";
 import { PHASE_INTENSITY, RunAudio, smashCue, telegraphCue, type VenueAudioExt } from "./audio";
 import { Hud, type ScreenPoint } from "./hud";
 import { comboScale as comboGrow, planFor, TimeWarp, type Beat, type JuicePlan } from "./juice";
@@ -46,12 +46,16 @@ import {
   dragCancels,
   dragPower,
   flingInput,
+  ButtonEdges,
   InputLog,
   KeyboardAim,
+  MIN_POWER,
+  padAim,
+  PAD,
   OneSwitchAim,
   SteerEncoder,
 } from "./input";
-import { buildResults, scarNote, type ResultsModel } from "./results";
+import { buildResults, replayNote, scarNote, type ResultsModel } from "./results";
 import { disposePlaceholderCreatures, RunScene, U, type CreatureFactory } from "./scene";
 import { drawSilhouette, renderShareCard } from "./share-card";
 import { KIND, PX, SHARED_SIM, type SimModule } from "./sim-module";
@@ -102,6 +106,8 @@ export interface LoosePixelsOptions {
   readonly autoStart?: RunKind;
   /** Accessibility: one-switch controls (auto-rotating aim, oscillating power). */
   readonly oneSwitch?: boolean;
+  /** Accessibility: tap-to-target (a tap flings toward the point with the power that stops there) instead of tap-to-sweep. */
+  readonly tapTarget?: boolean;
   /** Accessibility: no impact-frame inversions (separate from reduced motion). */
   readonly noFlashes?: boolean;
   /** Clock for timers (tests). Defaults to `performance.now()`. */
@@ -241,7 +247,9 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   let endReason: EndReason = "time";
   let results: ResultsModel | null = null;
   let shareCanvas: HTMLCanvasElement | null = null;
-  let aim: { ang: number; p: number; from: "drag" | "keys" | "one" } | null = null;
+  let aim: { ang: number; p: number; from: "drag" | "keys" | "one" | "pad" } | null = null;
+  const padButtons = new ButtonEdges();
+  let padLast: { ang: number; p: number } | null = null;
   let aimSlowLeft = 0;
   let keyAimShownUntil = 0;
   let lastChargeStep = 0;
@@ -277,8 +285,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     return b ? projectSim(b.x, b.z, 0) : null;
   };
   // Callouts sit beside the Friend's head (frame 1: "−4 px" to its upper right), clear of the timer.
-  const friendHead = (): ScreenPoint =>
-    project(tmp.copy(scene.friendPos).add(tmp2.set(1.7, 1.9, 0)));
+  const friendHead = (): ScreenPoint => project(tmp.copy(scene.friendPos).add(tmp2.set(1.7, 1.9, 0)));
 
   // ── Juice ─────────────────────────────────────────────────────────────────────────────────────────────────────────
   const juice = (plan: JuicePlan, at?: ScreenPoint): void => {
@@ -553,9 +560,17 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         break;
       }
       case "tap": {
-        // Tap-to-sweep: steer toward the tapped ground point (collect loose pixels without a full fling).
         const g = groundAt(e.at.x, e.at.y);
-        if (g) steerTarget = { x: g.x, z: g.z, until: now() + 1500 };
+        if (!g) break;
+        const b = body();
+        if (opts.tapTarget && b) {
+          // Tap-to-target: fling toward the point with the power whose slide stops there (sim damping, own mass).
+          const dist = Math.hypot(g.x - b.x, g.z - b.z);
+          fire(angleFromDir(g.x - b.x, g.z - b.z), Math.max(MIN_POWER, powerForDistance(dist, b.mass)));
+        } else {
+          // Tap-to-sweep: steer toward the tapped ground point (collect loose pixels without a full fling).
+          steerTarget = { x: g.x, z: g.z, until: now() + 1500 };
+        }
         break;
       }
       case "cancel":
@@ -621,8 +636,44 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     hud.hint(null);
   };
 
-  /** Continuous input work per rendered frame (keyboard rotation, charge, steering). */
+  /** First connected standard gamepad, if the browser exposes any. */
+  const readPad = (): Gamepad | null => {
+    try {
+      for (const p of navigator.getGamepads?.() ?? []) if (p?.connected) return p;
+    } catch {
+      // Gamepad API blocked (permissions policy): keyboard, touch and one-switch still work.
+    }
+    return null;
+  };
+  /** Gamepad (GDD §2.2): left stick aims + sets power, A fires (or release the right trigger), Start pauses. */
+  const pollPad = (): void => {
+    const pad = readPad();
+    if (!pad) {
+      if (aim?.from === "pad") aim = null;
+      padButtons.reset();
+      return;
+    }
+    if (padButtons.edge(PAD.start, pad.buttons[PAD.start]?.pressed ?? false) === "press" && state === "run")
+      setPaused(!paused);
+    if (!canPlay()) return;
+    const a = padAim(pad.axes[0] ?? 0, pad.axes[1] ?? 0);
+    if (a) {
+      padLast = a;
+      aim = { ...a, from: "pad" };
+    } else if (aim?.from === "pad") aim = null;
+    const fireA = padButtons.edge(PAD.a, pad.buttons[PAD.a]?.pressed ?? false) === "press";
+    const trig = padButtons.edge(PAD.trigger, (pad.buttons[PAD.trigger]?.value ?? 0) > PAD.triggerOn) === "release";
+    const shot = a ?? (trig ? padLast : null);
+    if ((fireA || trig) && shot) {
+      audioUnlockHint();
+      fire(shot.ang, shot.p);
+      padLast = null;
+    }
+  };
+
+  /** Continuous input work per rendered frame (keyboard rotation, charge, steering, gamepad). */
   const pollInput = (dt: number): void => {
+    pollPad();
     if (!canPlay()) return;
     const inp = stage.input;
     const left = inp.isKeyDown("ArrowLeft") || inp.isKeyDown("KeyA");
@@ -645,9 +696,9 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
           audio.cue("fling.charge", { step });
         }
         aim = { ang: angleFromDeg(keys.deg), p: Math.max(p, 0.12), from: "keys" };
-      } else if (time < keyAimShownUntil && aim?.from !== "drag") {
+      } else if (time < keyAimShownUntil && aim?.from !== "drag" && aim?.from !== "pad") {
         aim = { ang: angleFromDeg(keys.deg), p: 0.35, from: "keys" };
-      } else if (aim && aim.from !== "drag") aim = null;
+      } else if (aim && aim.from !== "drag" && aim.from !== "pad") aim = null;
     }
     if (aim?.from === "drag" && aim.p > 0) {
       const t = aim.p;
@@ -762,7 +813,13 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     audio.cue("run.start");
     audio.music?.play("run", seed);
     audio.music?.setIntensity(PHASE_INTENSITY[0]);
-    hud.hint(opts.oneSwitch ? "press to lock aim · press again to fling" : "drag to fling · tap to sweep");
+    hud.hint(
+      opts.oneSwitch
+        ? "press to lock aim · press again to fling"
+        : opts.tapTarget
+          ? "drag to fling · tap a spot to fling there"
+          : "drag to fling · tap to sweep",
+    );
   };
 
   const endRun = (): void => {
@@ -844,6 +901,14 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     const note = document.createElement("p");
     note.textContent = scarNote(model, null, false);
     card.append(note);
+    const replayLine = document.createElement("p");
+    const setReplay = (ack: RunAck | null, failed: boolean): void => {
+      const text = replayNote(model.share.kind, model.share.day, ack, failed);
+      replayLine.textContent = text ?? "";
+      replayLine.hidden = text === null;
+    };
+    setReplay(null, false);
+    card.append(replayLine);
     const btns = document.createElement("div");
     card.append(btns);
     hud.button(btns, "play again", () => void startRun(cfg?.kind ?? "free"), true);
@@ -858,7 +923,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         .then((q) => {
           quote = q;
           if (regrowBtn)
-            regrowBtn.textContent = `regrow ${model.lostThisRun} · ${formatRf(q.totalMicro)}${q.mode === "sim" ? " sim" : ""}`;
+            regrowBtn.textContent = `regrow ${model.lostThisRun} · ${formatRf(q.totalMicro)}${q.mode === "sim" ? " (simulated)" : ""}`;
         })
         .catch(() => {
           if (regrowBtn) regrowBtn.textContent = "regrow unavailable";
@@ -896,6 +961,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     report
       .then((ack) => {
         note.textContent = scarNote(model, ack, false);
+        setReplay(ack, false);
         if (regrowBtn && ack.applied && quote) regrowBtn.disabled = false;
         else if (regrowBtn && ack.applied)
           // The quote may still be in flight: enable when it lands.
@@ -905,6 +971,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       })
       .catch(() => {
         note.textContent = scarNote(model, null, true);
+        setReplay(null, true);
       });
   };
 
@@ -938,7 +1005,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     const p2 = document.createElement("p");
     p2.textContent = opts.oneSwitch
       ? "one-switch: press to lock the aim, press again to fling."
-      : "drag anywhere to fling (opposite to the drag). tap to sweep. keys: ←/→ aim, space charge, ↓ sweep, p pause.";
+      : `drag anywhere to fling (opposite to the drag). ${opts.tapTarget ? "tap a spot to fling there" : "tap to sweep"}. keys: ←/→ aim, space charge, ↓ sweep, p pause. pad: stick aims, a flings, start pauses.`;
     card.append(p1, p2);
     if (loaned) {
       const p3 = document.createElement("p");

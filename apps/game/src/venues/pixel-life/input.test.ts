@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  ButtonEdges,
+  padAim,
   angleDelta,
   angleFromDeg,
   angleFromDir,
@@ -144,5 +146,25 @@ describe("input log", () => {
     log.clearPending();
     expect(log.flush(43)).toHaveLength(0);
     expect(log.inputs).toHaveLength(2);
+  });
+});
+
+describe("gamepad", () => {
+  it("maps the stick with a 0.2 deadzone and linear power", () => {
+    expect(padAim(0.1, 0.1)).toBeNull();
+    const right = padAim(1, 0);
+    expect(right?.ang).toBe(0);
+    expect(right?.p).toBeCloseTo(1);
+    const down = padAim(0, 0.6);
+    expect(down?.ang).toBe(1024);
+    expect(down?.p).toBeCloseTo(0.5);
+    expect(padAim(Number.NaN, 0)).toBeNull();
+  });
+  it("reports button edges once", () => {
+    const b = new ButtonEdges();
+    expect(b.edge(0, true)).toBe("press");
+    expect(b.edge(0, true)).toBeNull();
+    expect(b.edge(0, false)).toBe("release");
+    expect(b.edge(0, false)).toBeNull();
   });
 });

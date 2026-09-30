@@ -3,6 +3,7 @@
  * injectable factory until `apps/game/src/creatures` lands), loose pixels, Old Gulp, bumpers and presentation particles.
  * It only reads sim views: interpolation between the last two fixed steps happens here, gameplay never does.
  */
+import type { Object3D } from "three";
 import {
   BoxGeometry,
   Color,
@@ -12,7 +13,6 @@ import {
   Matrix4,
   Mesh,
   MeshBasicMaterial,
-  Object3D,
   Quaternion,
   RingGeometry,
   Shape,
@@ -34,7 +34,7 @@ import {
 } from "@pl/shared";
 import { buildDetachableFriend, type DetachableFriend } from "../../friend";
 import { createBandMaterial } from "../../post/band-material";
-import { tagGlow, tagHalo, untagged } from "../../post/tags";
+import { tagHalo, untagged } from "../../post/tags";
 import { PALETTE } from "../../stage/palette";
 import { buildClouds } from "../../world/clouds";
 import { buildIsland, type IslandModel } from "../../world/island";
@@ -288,7 +288,14 @@ export function rimRadius(a: number, b: number, ux: number, uz: number): number 
  * The sim's wedge sector (polar angle `dir` ± `half`, sim angle units) between `inner` and `outer` shares of the rim
  * radius, laid on the ground plane in world units. Matches `Island.inWedgeSector`, so what looks bitten is bitten.
  */
-export function wedgeGeometry(a: number, b: number, dir: number, half: number, inner = 0.4, outer = 1.12): ShapeGeometry {
+export function wedgeGeometry(
+  a: number,
+  b: number,
+  dir: number,
+  half: number,
+  inner = 0.4,
+  outer = 1.12,
+): ShapeGeometry {
   const shape = new Shape();
   const steps = 24;
   const t0 = ((dir - half) / 4096) * Math.PI * 2;
@@ -633,7 +640,11 @@ export class RunScene {
         this.creatureShadows.set(v.object, attachProjectedShadow(v.object, { groundY: 0 }));
         const speak = this.onCreatureSpeak;
         const id = c.id;
-        if (v.onSpeak && speak) this.speechOff.set(id, v.onSpeak((text, sec) => speak(id, text, sec)));
+        if (v.onSpeak && speak)
+          this.speechOff.set(
+            id,
+            v.onSpeak((text, sec) => speak(id, text, sec)),
+          );
       }
       const p = prevBy.get(c.id) ?? c;
       const ic: CreatureView = { ...c, x: lerp(p.x, c.x, alpha), y: lerp(p.y, c.y, alpha), z: lerp(p.z, c.z, alpha) };

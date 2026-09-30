@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { launchSpeed, previewDistances, previewPoints } from "./aim";
+import { slideDistance } from "@pl/shared";
+import { launchSpeed, powerForDistance, previewDistances, previewPoints } from "./aim";
 
 describe("aim preview", () => {
   it("matches the GDD launch speeds", () => {
@@ -21,5 +22,14 @@ describe("aim preview", () => {
     const pts = previewPoints(30, 0, 1, 0, [2, 4, 6, 8, 10, 12, 14, 16], 36, 24);
     expect(Math.max(...pts.map((p) => p.x))).toBeLessThan(40);
     expect(pts.at(-1)?.x ?? 99).toBeLessThan(36);
+  });
+  it("solves tap-to-target power from the sim's slide distance", () => {
+    const p = powerForDistance(15, 82);
+    expect(p).toBeGreaterThan(0.1);
+    expect(p).toBeLessThan(1);
+    expect(slideDistance(launchSpeed(p, 82), 1)).toBeGreaterThanOrEqual(15);
+    expect(slideDistance(launchSpeed(p - 2 / 1023, 82), 1)).toBeLessThan(15);
+    expect(powerForDistance(999, 82)).toBe(1);
+    expect(powerForDistance(0, 82)).toBe(0);
   });
 });

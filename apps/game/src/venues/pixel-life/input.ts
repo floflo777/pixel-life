@@ -247,3 +247,35 @@ export class InputLog {
 }
 
 const EMPTY: readonly SimInput[] = Object.freeze([]);
+
+/** Gamepad mapping (GDD §2.2, standard layout): stick deadzone, A, right trigger (threshold), Start. */
+export const PAD = { deadzone: 0.2, a: 0, trigger: 7, triggerOn: 0.5, start: 9 } as const;
+
+/**
+ * Left-stick aim: direction = stick direction on the ground (screen right = +x, stick down = +z toward the camera), and
+ * magnitude 0.2 → 1 maps to power 0 → 1. Null inside the deadzone.
+ */
+export function padAim(x: number, y: number): { ang: number; p: number } | null {
+  const m = Math.hypot(Number.isFinite(x) ? x : 0, Number.isFinite(y) ? y : 0);
+  if (!(m > PAD.deadzone)) return null;
+  return { ang: angleFromDir(x, y), p: Math.min(1, (m - PAD.deadzone) / (1 - PAD.deadzone)) };
+}
+
+/** Edge detector for polled buttons: reports presses and releases once. */
+export class ButtonEdges {
+  private readonly down = new Map<number, boolean>();
+
+  /** Feeds the current state of button `i`; returns "press", "release" or null. */
+  edge(i: number, isDown: boolean): "press" | "release" | null {
+    const was = this.down.get(i) ?? false;
+    this.down.set(i, isDown);
+    if (isDown && !was) return "press";
+    if (!isDown && was) return "release";
+    return null;
+  }
+
+  /** Forgets every button (pad disconnected, run restarted). */
+  reset(): void {
+    this.down.clear();
+  }
+}

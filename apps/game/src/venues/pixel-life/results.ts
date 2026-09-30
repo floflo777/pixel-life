@@ -145,3 +145,15 @@ export function scarNote(model: ResultsModel, ack: RunAck | null, failed: boolea
       return "scars were not applied.";
   }
 }
+
+/**
+ * The replay line under a daily result: the server re-runs the input log through the same sim (`replay`) and only
+ * then counts it. Null for free runs.
+ */
+export function replayNote(kind: RunKind, day: string | undefined, ack: RunAck | null, failed: boolean): string | null {
+  if (kind !== "daily") return null;
+  const head = `daily${day ? ` ${day}` : ""}`;
+  if (failed) return `${head} · not submitted`;
+  if (!ack || ack.verified === "pending") return `${head} · server replay pending…`;
+  return ack.verified === "ok" ? `${head} · replay verified ✓` : `${head} · replay mismatch: not ranked`;
+}
