@@ -17,6 +17,8 @@ RUN mkdir -p /out \
 
 FROM ${NODE_IMAGE} AS build
 WORKDIR /app
+# --ignore-scripts everywhere: the root patch-package postinstall only patches the SDK's browser runtime
+# (ConnectedGameHost), which the server never imports; no dependency needs an install script at runtime.
 COPY --from=manifests /out ./
 RUN npm ci --ignore-scripts --no-audit --no-fund
 COPY . .
