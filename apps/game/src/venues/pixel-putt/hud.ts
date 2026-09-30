@@ -119,6 +119,7 @@ export class PuttHud {
   private countEl: HTMLElement | null = null;
   private lastStrip = "";
   private lastPower = -1;
+  private readonly cards: HTMLElement[];
 
   constructor(
     parent: HTMLElement,
@@ -171,8 +172,14 @@ export class PuttHud {
     this.live = el("div");
     this.live.setAttribute("aria-live", "polite");
     this.live.style.cssText = "position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)";
+    this.cards = [hole, strokes, score, this.pauseBtn];
     this.root.append(this.layer, hole, strokes, score, this.pauseBtn, this.power, this.live);
     parent.append(this.root);
+  }
+
+  /** Shows the in-round cards (hole, strokes, scorecard, pause) only while a round is on. */
+  setPlaying(on: boolean): void {
+    for (const c of this.cards) c.style.visibility = on ? "" : "hidden";
   }
 
   /** Announces a line to assistive tech. */

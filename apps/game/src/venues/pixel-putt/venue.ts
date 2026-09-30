@@ -205,8 +205,10 @@ async function mountVenue(host: VenueHost<GameStage>, opts: PixelPuttOptions): P
   const hole = (): PixelPutt.PuttHole | null => (sim && cur ? (sim.course.holes[cur.hole] ?? null) : null);
 
   // ── Camera: frame the whole hole; portrait screens turn the course so it runs up the screen ─────────────────────
+  /** The hole shown behind the start card (a windmill, fixed knobs) until a round begins. */
+  let showcase: PixelPutt.PuttHole | null = null;
   const frameHole = (snap: boolean): void => {
-    const h = hole();
+    const h = hole() ?? showcase;
     if (!h) return;
     const w = canvas.clientWidth || 1;
     const hgt = canvas.clientHeight || 1;
@@ -517,6 +519,8 @@ async function mountVenue(host: VenueHost<GameStage>, opts: PixelPuttOptions): P
     paused = false;
     resumeAt = 0;
     state = "play";
+    showcase = null;
+    hud.setPlaying(true);
     for (const e of sim.drainEvents()) onEvent(e);
     audio.cue("run.start");
     audio.music?.play("run", seed);
@@ -616,6 +620,24 @@ async function mountVenue(host: VenueHost<GameStage>, opts: PixelPuttOptions): P
 
   const showStart = (): void => {
     state = "start";
+    hud.setPlaying(false);
+    showcase = PixelPutt.buildHole(PixelPutt.templateSpec(4, [0.5, 0.3, 0.5, 0.5]), 1);
+    scene.setHole(showcase);
+    const idle: PixelPutt.PuttView = {
+      tick: 0,
+      hole: 0,
+      holeTick: 0,
+      phase: "play",
+      ball: { x: showcase.tee.x, z: showcase.tee.z, y: 0, vx: 0, vz: 0, mode: "rest" },
+      ready: false,
+      strokes: 0,
+      card: [],
+      total: 0,
+      parSoFar: 0,
+    };
+    cur = idle;
+    prev = idle;
+    frameHole(true);
     const card = hud.openModal("pixel putt");
     const p1 = document.createElement("p");
     p1.textContent = PUTT_RULE;
@@ -668,7 +690,8 @@ async function mountVenue(host: VenueHost<GameStage>, opts: PixelPuttOptions): P
     pollInput(dt);
     const running = state === "play" || state === "ending";
     stage.timeScale = !running || paused || resumeAt > 0 || t < stopUntil ? 0 : 1;
-    const sdt = stage.timeScale > 0 ? dt : 0;
+    // Presentation time: frozen during hit-stop and pause, but the start-card showcase keeps idling.
+    const sdt = stage.timeScale > 0 || state === "start" ? dt : 0;
     if (!cur || !prev) {
       hud.frame(t);
       return;
