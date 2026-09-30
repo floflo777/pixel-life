@@ -41,7 +41,7 @@ need_release_files() {
   log "(dry run) release not uploaded yet: would $1"
   return 1
 }
-current_release() { basename "$(readlink -f "$ROOT/current" 2>/dev/null || echo none)"; }
+current_release() { if [[ -L "$ROOT/current" ]]; then basename "$(readlink "$ROOT/current")"; else echo none; fi; }
 
 # Removes the nginx vhost we are about to replace if nginx -t fails, restoring the previous file.
 nginx_install() {
