@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Regenerates the Cloudflare allow-list snippet from Cloudflare's published ranges, validates nginx, reloads.
-# Usage (on the host, as root): deploy/nginx/update-cloudflare-ips.sh [/etc/nginx/snippets/cloudflare-allow.conf]
+# Usage (on the host, as root): deploy/nginx/update-cloudflare-ips.sh [/etc/nginx/snippets/pixel-life-cloudflare-allow.conf]
 set -euo pipefail
-target="${1:-/etc/nginx/snippets/cloudflare-allow.conf}"
+target="${1:-/etc/nginx/snippets/pixel-life-cloudflare-allow.conf}"
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 v4="$(curl -fsS --max-time 10 https://www.cloudflare.com/ips-v4)"

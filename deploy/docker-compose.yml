@@ -1,5 +1,7 @@
 # Pixel Life on ailog: game server + PostgreSQL 16, isolated from every other service on the host.
-# Run from /home/ubuntu/pixel-life/deploy:  docker compose up -d --build
+# Deployed by scripts/deploy.sh: each release is unpacked to /home/ubuntu/pixel-life/releases/<sha>, this file is run
+# from releases/<sha>/deploy with .env symlinked to the root-only /home/ubuntu/pixel-life/.env, and the server image
+# is tagged pixel-life-server:<sha> (SERVER_TAG) plus :latest.
 # Ports are bound to 127.0.0.1 only (3100 api, 55432 postgres); nginx is the only public entry.
 name: pixel-life
 
@@ -32,7 +34,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
-    image: pixel-life-server:latest
+    image: pixel-life-server:${SERVER_TAG:-latest}
     restart: unless-stopped
     init: true
     env_file: .env
@@ -52,6 +54,18 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     stop_grace_period: 15s
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3100/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
     logging: *logging
 
 networks:
