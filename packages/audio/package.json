@@ -1,0 +1,18 @@
+{
+  "name": "@pl/audio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "WebAudio engine, procedural SFX cue registry and adaptive generative music for Pixel Life.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dev": "vite"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vite": "^8.3.1"
+  }
+}
