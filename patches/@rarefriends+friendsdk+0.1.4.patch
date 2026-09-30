@@ -1,3 +1,39 @@
+diff --git a/node_modules/@rarefriends/friendsdk/dist/game-frame.d.ts b/node_modules/@rarefriends/friendsdk/dist/game-frame.d.ts
+--- a/node_modules/@rarefriends/friendsdk/dist/game-frame.d.ts
++++ b/node_modules/@rarefriends/friendsdk/dist/game-frame.d.ts
+@@ -44,6 +44,8 @@ export type GameFrameProps = {
+     walletActions?: ReactNode;
+     mode: "preview" | "live";
+     onMenuChange?: (open: boolean) => void;
++    /** Toolbar label in preview mode (Pixel Life patch); defaults to "Local preview". Ignored in live mode. */
++    previewLabel?: string;
+ };
+ /** An in-frame menu. Never portals into the website or opens a viewport-sized dialog. */
+ export declare function GameMenu({ title, onClose, children, footer }: {
+@@ -52,4 +54,4 @@ export declare function GameMenu({ title, onClose, children, footer }: {
+     children: ReactNode;
+     footer?: ReactNode;
+ }): import("react/jsx-runtime").JSX.Element;
+-export declare function GameFrame({ children, friends, selectedFriendId, onSelectFriend, friendsLoading, friendsError, friendsEmptyMessage, friendsHiddenCount, onConnect, wallet, confirmation, connection, walletActions, selectionMode, mode, onMenuChange }: GameFrameProps): import("react/jsx-runtime").JSX.Element;
++export declare function GameFrame({ children, friends, selectedFriendId, onSelectFriend, friendsLoading, friendsError, friendsEmptyMessage, friendsHiddenCount, onConnect, wallet, confirmation, connection, walletActions, selectionMode, mode, onMenuChange, previewLabel }: GameFrameProps): import("react/jsx-runtime").JSX.Element;
+diff --git a/node_modules/@rarefriends/friendsdk/dist/game-frame.js b/node_modules/@rarefriends/friendsdk/dist/game-frame.js
+--- a/node_modules/@rarefriends/friendsdk/dist/game-frame.js
++++ b/node_modules/@rarefriends/friendsdk/dist/game-frame.js
+@@ -37,12 +37,12 @@ export function GameMenu({ title, onClose, children, footer }) {
+                 }
+             }, children: [_jsxs("header", { className: "rf-frame-menu-heading", children: [_jsx("h2", { id: id, children: title }), onClose && _jsx("button", { type: "button", onClick: onClose, "aria-label": `Close ${title}`, children: "\u00D7" })] }), _jsx("div", { className: "rf-frame-menu-body", children: children }), footer && _jsx("footer", { className: "rf-frame-menu-footer", children: footer })] }) });
+ }
+-export function GameFrame({ children, friends, selectedFriendId, onSelectFriend, friendsLoading, friendsError, friendsEmptyMessage = "No playable Friends found.", friendsHiddenCount = 0, onConnect, wallet, confirmation, connection, walletActions, selectionMode = "picker", mode, onMenuChange }) {
++export function GameFrame({ children, friends, selectedFriendId, onSelectFriend, friendsLoading, friendsError, friendsEmptyMessage = "No playable Friends found.", friendsHiddenCount = 0, onConnect, wallet, confirmation, connection, walletActions, selectionMode = "picker", mode, onMenuChange, previewLabel }) {
+     const [menu, setMenu] = useState(null);
+     const friend = friends.find(value => value.id === selectedFriendId);
+     const selecting = selectionMode === "picker" && (!friend || menu === "friends");
+     const menuOpen = selecting || menu === "wallet" || Boolean(confirmation);
+     useEffect(() => { onMenuChange?.(menuOpen); }, [menuOpen, onMenuChange]);
+-    return _jsxs("section", { className: "rf-game-frame", "aria-label": "Game container", "data-mode": mode, children: [_jsxs("div", { className: "rf-frame-chrome", inert: menuOpen || undefined, children: [_jsxs("div", { className: "rf-frame-toolbar", children: [_jsx("span", { className: "rf-frame-mode", children: mode === "preview" ? "Local preview" : "Live · Robinhood" }), selectionMode === "host" ? _jsx("span", { className: "rf-frame-selected-friend", children: friend?.label ?? "Choose a Friend" })
++    return _jsxs("section", { className: "rf-game-frame", "aria-label": "Game container", "data-mode": mode, children: [_jsxs("div", { className: "rf-frame-chrome", inert: menuOpen || undefined, children: [_jsxs("div", { className: "rf-frame-toolbar", children: [_jsx("span", { className: "rf-frame-mode", children: mode === "preview" ? previewLabel ?? "Local preview" : "Live · Robinhood" }), selectionMode === "host" ? _jsx("span", { className: "rf-frame-selected-friend", children: friend?.label ?? "Choose a Friend" })
+                                 : _jsx("button", { type: "button", onClick: () => setMenu("friends"), "aria-label": "Choose Friend", children: friend?.label ?? "Choose Friend" }), _jsx("button", { type: "button", onClick: () => setMenu("wallet"), disabled: !friend, "aria-label": "Open Friend wallet", children: "Friend wallet" })] }), _jsx("div", { className: "rf-frame-viewport", children: children })] }), confirmation ? _jsxs(GameMenu, { title: confirmation.title, onClose: confirmation.busy ? undefined : confirmation.onCancel, footer: _jsxs(_Fragment, { children: [_jsx("button", { type: "button", disabled: confirmation.busy, onClick: confirmation.onCancel, children: "Cancel" }), _jsx("button", { type: "button", className: "rf-frame-primary", disabled: confirmation.busy, onClick: confirmation.onConfirm, children: confirmation.busy ? "Waiting…" : mode === "preview" ? "Confirm preview" : "Confirm" })] }), children: [_jsx("p", { children: confirmation.description }), confirmation.amount !== undefined && _jsx("p", { children: _jsxs("strong", { children: [formatGameAmount(confirmation.amount, 18), " RF"] }) }), confirmation.notice && _jsx("p", { children: confirmation.notice }), _jsx("p", { children: friend?.label }), _jsx("p", { className: "rf-frame-note", children: mode === "preview" ? "Simulated RF. No transaction will be sent." : "This action uses the selected Friend’s canonical wallet. A result is confirmed only after its receipt." }), confirmation.error && _jsx("p", { role: "alert", children: confirmation.error })] }) : selecting ? _jsxs(GameMenu, { title: "Choose your Friend", onClose: friend ? () => setMenu(null) : undefined, children: [_jsx("p", { children: mode === "preview" ? !friends.some(value => value.kind === "sample") ? "Choose your Friend for this local preview. Balances, items and outcomes are simulated." : "Choose a sample Friend. Each has separate simulated balances and items." : "Choose an owned, hardwired Generations NFT. Its inventory and RF stay with its wallet." }), connection, friendsLoading && _jsx("p", { role: "status", children: "Loading your Friends\u2026" }), friendsError && _jsx("p", { role: "alert", children: friendsError }), _jsx("div", { className: "rf-frame-friends", children: friends.map(value => _jsxs("button", { type: "button", "aria-pressed": value.id === selectedFriendId, onClick: () => { onSelectFriend?.(value.id); setMenu(null); }, children: [_jsx("strong", { children: value.label }), _jsx("small", { children: value.kind === "sample" ? "Sample · no ownership claim" : "Hardwired Generations" })] }, value.id.toString())) }), !friendsLoading && !friendsError && friendsHiddenCount > 0 && _jsxs("p", { children: [friendsHiddenCount, " ", friendsHiddenCount === 1 ? "Friend" : "Friends", " hidden: not hardwired (generation 0). Playing requires generation 1 or higher."] }), !friendsLoading && !friendsError && !friends.length && friendsEmptyMessage && _jsx("p", { children: friendsEmptyMessage }), onConnect && _jsx("button", { type: "button", className: "rf-frame-primary", onClick: onConnect, children: "Connect wallet" })] }) : menu === "wallet" ? _jsxs(GameMenu, { title: "Friend wallet", onClose: () => setMenu(null), children: [_jsx("h3", { children: friend?.label }), _jsx("p", { children: mode === "preview" ? "Preview balance. RF is simulated and no transactions are sent." : "Items and RF belong to this Friend’s canonical wallet." }), friend?.walletAddress && _jsx("p", { className: "rf-frame-address", children: friend.walletAddress }), wallet?.status === "loading" ? _jsx("p", { role: "status", children: "Loading RF balance\u2026" }) : wallet?.balance !== undefined ? _jsxs("p", { className: "rf-frame-wallet-balance", children: [formatGameAmount(wallet.balance, 18), " RF"] }) : _jsx("p", { children: "RF balance unavailable." }), wallet?.error && _jsx("p", { role: "alert", children: wallet.error }), walletActions, selectionMode === "picker" && _jsx("button", { type: "button", onClick: () => setMenu("friends"), children: "Change Friend" })] }) : null] });
+ }
 diff --git a/node_modules/@rarefriends/friendsdk/dist/game-host.d.ts b/node_modules/@rarefriends/friendsdk/dist/game-host.d.ts
 --- a/node_modules/@rarefriends/friendsdk/dist/game-host.d.ts
 +++ b/node_modules/@rarefriends/friendsdk/dist/game-host.d.ts
@@ -8,7 +44,7 @@ diff --git a/node_modules/@rarefriends/friendsdk/dist/game-host.d.ts b/node_modu
  import { type LiveGameDeployment } from "./live-game.js";
  import type { ChanceWalletClient } from "./chain.js";
  import { type GenerationIdentityClient } from "./identity.js";
-@@ -33,6 +33,20 @@ export type ConnectedGameHostProps = {
+@@ -33,6 +33,25 @@ export type ConnectedGameHostProps = {
      /** Required only when a deployment is supplied. Stays in the trusted runtime. */
      walletClient?: ChanceWalletClient;
      assertActive?: () => void;
@@ -18,6 +54,11 @@ diff --git a/node_modules/@rarefriends/friendsdk/dist/game-host.d.ts b/node_modu
 +     * to keep the session-local `createGamePreview` ledger. Ignored in live mode.
 +     */
 +    previewClient?: PreviewClientFactory;
++    /**
++     * Frame toolbar label in preview mode (Pixel Life patch), e.g. when `previewClient` is a server-backed
++     * simulated ledger rather than a session-local one. Defaults to "Local preview"; ignored in live mode.
++     */
++    previewLabel?: string;
  };
 +/** Context handed to `previewClient`, always from a freshly verified identity. */
 +export type PreviewClientContext = Readonly<{
@@ -40,7 +81,7 @@ diff --git a/node_modules/@rarefriends/friendsdk/dist/game-host.js b/node_module
 -    const ledgerState = useRef({ definition, revision: 0, ledgers: new Map() });
 -    if (ledgerState.current.definition !== definition)
 -        ledgerState.current = { definition, revision: ledgerState.current.revision + 1, ledgers: new Map() };
-+function ConnectedViewport({ definition, selectedFriend, account, chainId, publicClient, frameUrl, revision = 0, picker, deployment, walletClient, assertActive, previewClient }) {
++function ConnectedViewport({ definition, selectedFriend, account, chainId, publicClient, frameUrl, revision = 0, picker, deployment, walletClient, assertActive, previewClient, previewLabel }) {
 +    const ledgerState = useRef({ definition, previewClient, revision: 0, ledgers: new Map() });
 +    // A new definition or ledger factory starts fresh ledgers and remounts the gate.
 +    if (ledgerState.current.definition !== definition || ledgerState.current.previewClient !== previewClient) {
@@ -50,16 +91,26 @@ diff --git a/node_modules/@rarefriends/friendsdk/dist/game-host.js b/node_module
      const key = JSON.stringify([selectedFriend?.id.toString(), selectedFriend?.walletAddress?.toLowerCase(), account?.toLowerCase(), chainId]);
      const sessionKey = `${key}:${revision}:${ledgerState.current.revision}:${deployment?.game ?? "preview"}`;
      if (!selectedFriend || !account || chainId === null || !publicClient)
-         return _jsx(GameFrame, { mode: deployment ? "live" : "preview", selectionMode: picker ? "picker" : "host", friends: selectedFriend ? [selectedFriend] : [], selectedFriendId: selectedFriend?.id ?? null, ...picker, children: _jsx("p", { className: "rf-runtime-status", role: "status", children: "Connect a wallet and choose an owned hardwired Friend." }) });
+-        return _jsx(GameFrame, { mode: deployment ? "live" : "preview", selectionMode: picker ? "picker" : "host", friends: selectedFriend ? [selectedFriend] : [], selectedFriendId: selectedFriend?.id ?? null, ...picker, children: _jsx("p", { className: "rf-runtime-status", role: "status", children: "Connect a wallet and choose an owned hardwired Friend." }) });
 -    return _jsx(EligibilityGate, { definition: definition, picker: picker, friend: selectedFriend, account: account, chainId: chainId, publicClient: publicClient, frameUrl: frameUrl, ledgers: ledgers, deployment: deployment, walletClient: walletClient, assertActive: assertActive }, sessionKey);
-+    return _jsx(EligibilityGate, { definition: definition, picker: picker, friend: selectedFriend, account: account, chainId: chainId, publicClient: publicClient, frameUrl: frameUrl, ledgers: ledgers, deployment: deployment, walletClient: walletClient, assertActive: assertActive, previewClient: previewClient }, sessionKey);
++        return _jsx(GameFrame, { mode: deployment ? "live" : "preview", previewLabel: previewLabel, selectionMode: picker ? "picker" : "host", friends: selectedFriend ? [selectedFriend] : [], selectedFriendId: selectedFriend?.id ?? null, ...picker, children: _jsx("p", { className: "rf-runtime-status", role: "status", children: "Connect a wallet and choose an owned hardwired Friend." }) });
++    return _jsx(EligibilityGate, { definition: definition, picker: picker, friend: selectedFriend, account: account, chainId: chainId, publicClient: publicClient, frameUrl: frameUrl, ledgers: ledgers, deployment: deployment, walletClient: walletClient, assertActive: assertActive, previewClient: previewClient, previewLabel: previewLabel }, sessionKey);
  }
 -function EligibilityGate({ definition, picker, friend, account, chainId, publicClient, frameUrl, ledgers, deployment, walletClient, assertActive }) {
-+function EligibilityGate({ definition, picker, friend, account, chainId, publicClient, frameUrl, ledgers, deployment, walletClient, assertActive, previewClient }) {
++function EligibilityGate({ definition, picker, friend, account, chainId, publicClient, frameUrl, ledgers, deployment, walletClient, assertActive, previewClient, previewLabel }) {
      const [attempt, setAttempt] = useState(0);
      const [verification, setVerification] = useState(null);
      useEffect(() => {
-@@ -126,7 +128,9 @@ function EligibilityGate({ definition, picker, friend, account, chainId, publicC
+@@ -115,7 +117,7 @@ function EligibilityGate({ definition, picker, friend, account, chainId, publicC
+     // A replaced read client invalidates verification during render, before effects.
+     const checked = verification?.client === publicClient ? verification : null;
+     if (!checked?.eligible)
+-        return _jsx(GameFrame, { mode: deployment ? "live" : "preview", selectionMode: picker ? "picker" : "host", friends: [friend], selectedFriendId: friend.id, ...picker, children: _jsxs("div", { className: "rf-runtime-status", role: checked?.error ? "alert" : "status", children: [_jsx("p", { children: checked?.error ?? "Checking ownership and hardwired eligibility…" }), checked?.error && _jsx("button", { type: "button", onClick: () => { setVerification(null); setAttempt(value => value + 1); }, children: "Retry eligibility" })] }) });
++        return _jsx(GameFrame, { mode: deployment ? "live" : "preview", previewLabel: previewLabel, selectionMode: picker ? "picker" : "host", friends: [friend], selectedFriendId: friend.id, ...picker, children: _jsxs("div", { className: "rf-runtime-status", role: checked?.error ? "alert" : "status", children: [_jsx("p", { children: checked?.error ?? "Checking ownership and hardwired eligibility…" }), checked?.error && _jsx("button", { type: "button", onClick: () => { setVerification(null); setAttempt(value => value + 1); }, children: "Retry eligibility" })] }) });
+     if (globalThis.__FRIENDSDK_LIVE__ !== false && deployment) {
+         if (!walletClient)
+             return _jsx(GameFrame, { mode: "live", friends: [friend], selectedFriendId: friend.id, ...picker, children: _jsx("p", { role: "alert", children: "Connect a wallet to send live game transactions." }) });
+@@ -126,13 +128,15 @@ function EligibilityGate({ definition, picker, friend, account, chainId, publicC
      const ledgerKey = `${chainId}:${friend.id}:${checked.walletAddress.toLowerCase()}`;
      let client = ledgers.get(ledgerKey);
      if (!client) {
@@ -70,6 +121,21 @@ diff --git a/node_modules/@rarefriends/friendsdk/dist/game-host.js b/node_module
          ledgers.set(ledgerKey, client);
      }
      // Remount both the bridge and child on any identity/network/URL change.
+-    return _jsx(EmbeddedSession, { picker: picker, friend: { ...friend, kind: "owned", walletAddress: checked.walletAddress }, client: client, definition: definition, frameUrl: frameUrl }, frameUrl);
++    return _jsx(EmbeddedSession, { picker: picker, friend: { ...friend, kind: "owned", walletAddress: checked.walletAddress }, client: client, definition: definition, frameUrl: frameUrl, previewLabel: previewLabel }, frameUrl);
+ }
+-function EmbeddedSession({ friend, client, definition, live, frameUrl, picker }) {
++function EmbeddedSession({ friend, client, definition, live, frameUrl, picker, previewLabel }) {
+     const liveRef = useRef(live);
+     liveRef.current = live;
+     const mode = globalThis.__FRIENDSDK_LIVE__ !== false && live ? "live" : "preview";
+@@ -356,5 +360,5 @@ function EmbeddedSession({ friend, client, definition, live, frameUrl, picker })
+             }
+         }
+     } : undefined;
+-    return _jsxs(GameFrame, { mode: mode, selectionMode: picker ? "picker" : "host", friends: [friend], selectedFriendId: friend.id, wallet: { balance: snapshot?.rfBalance, status: snapshot ? "ready" : "loading" }, walletActions: globalThis.__FRIENDSDK_LIVE__ !== false && live ? _jsxs("div", { className: "rf-runtime-connection", children: [_jsx("p", { children: "Transfer RF from your connected wallet to this Friend to buy bait. This is a real RF transfer plus ETH gas." }), _jsxs("label", { children: ["RF amount ", _jsx("input", { "aria-label": "RF amount", value: fundAmount, disabled: funding, inputMode: "decimal", onChange: event => setFundAmount(event.target.value) })] }), _jsx("button", { type: "button", disabled: funding || transactionPending, onClick: () => { void topUp?.(); }, children: funding ? "Confirming transfer…" : "Transfer RF to Friend" }), transactionPending && _jsx("p", { role: "status", children: "Finish the pending game action before transferring RF." }), fundMessage && _jsx("p", { role: "status", children: fundMessage })] }) : undefined, confirmation: confirmation, onMenuChange: onMenuChange, ...picker, children: [_jsx("iframe", { ref: iframe, src: frameUrl, title: definition.name, sandbox: "allow-scripts", referrerPolicy: "no-referrer" }, attempt), status !== "ready" && _jsxs("div", { className: "rf-runtime-status", role: status === "error" ? "alert" : "status", children: [_jsx("p", { children: status === "loading" ? live ? "Loading live game…" : "Loading game preview…" : sessionError || "The game could not connect. Check the frame URL and its asset permissions." }), status === "error" && _jsx("button", { type: "button", onClick: () => setAttempt(value => value + 1), children: "Retry game" })] })] });
++    return _jsxs(GameFrame, { mode: mode, previewLabel: previewLabel, selectionMode: picker ? "picker" : "host", friends: [friend], selectedFriendId: friend.id, wallet: { balance: snapshot?.rfBalance, status: snapshot ? "ready" : "loading" }, walletActions: globalThis.__FRIENDSDK_LIVE__ !== false && live ? _jsxs("div", { className: "rf-runtime-connection", children: [_jsx("p", { children: "Transfer RF from your connected wallet to this Friend to buy bait. This is a real RF transfer plus ETH gas." }), _jsxs("label", { children: ["RF amount ", _jsx("input", { "aria-label": "RF amount", value: fundAmount, disabled: funding, inputMode: "decimal", onChange: event => setFundAmount(event.target.value) })] }), _jsx("button", { type: "button", disabled: funding || transactionPending, onClick: () => { void topUp?.(); }, children: funding ? "Confirming transfer…" : "Transfer RF to Friend" }), transactionPending && _jsx("p", { role: "status", children: "Finish the pending game action before transferring RF." }), fundMessage && _jsx("p", { role: "status", children: fundMessage })] }) : undefined, confirmation: confirmation, onMenuChange: onMenuChange, ...picker, children: [_jsx("iframe", { ref: iframe, src: frameUrl, title: definition.name, sandbox: "allow-scripts", referrerPolicy: "no-referrer" }, attempt), status !== "ready" && _jsxs("div", { className: "rf-runtime-status", role: status === "error" ? "alert" : "status", children: [_jsx("p", { children: status === "loading" ? live ? "Loading live game…" : "Loading game preview…" : sessionError || "The game could not connect. Check the frame URL and its asset permissions." }), status === "error" && _jsx("button", { type: "button", onClick: () => setAttempt(value => value + 1), children: "Retry game" })] })] });
+ }
 diff --git a/node_modules/@rarefriends/friendsdk/dist/runtime.d.ts b/node_modules/@rarefriends/friendsdk/dist/runtime.d.ts
 --- a/node_modules/@rarefriends/friendsdk/dist/runtime.d.ts
 +++ b/node_modules/@rarefriends/friendsdk/dist/runtime.d.ts
@@ -78,6 +144,36 @@ diff --git a/node_modules/@rarefriends/friendsdk/dist/runtime.d.ts b/node_module
 +export { GameHost, ConnectedGameHost, type GameHostProps, type ConnectedGameHostProps, type PreviewClientContext, type PreviewClientFactory } from "./game-host.js";
  export { GameSession, type GameComponentProps } from "./game-session.js";
  export { createLiveGameClient, LIVE_GAME_MAX_ORACLE_FEE, type LiveGameDeployment, type LiveGameOptions } from "./live-game.js";
+diff --git a/node_modules/@rarefriends/friendsdk/src/game-frame.tsx b/node_modules/@rarefriends/friendsdk/src/game-frame.tsx
+--- a/node_modules/@rarefriends/friendsdk/src/game-frame.tsx
++++ b/node_modules/@rarefriends/friendsdk/src/game-frame.tsx
+@@ -22,6 +22,8 @@ export type GameFrameProps = {
+   onConnect?: () => void; wallet?: GameWalletState; confirmation?: GameConfirmation | null;
+   connection?: ReactNode; walletActions?: ReactNode;
+   mode: "preview" | "live"; onMenuChange?: (open: boolean) => void;
++  /** Toolbar label in preview mode (Pixel Life patch); defaults to "Local preview". Ignored in live mode. */
++  previewLabel?: string;
+ };
+ 
+ /** An in-frame menu. Never portals into the website or opens a viewport-sized dialog. */
+@@ -49,7 +51,7 @@ export function GameMenu({ title, onClose, children, footer }: { title: string;
+   </div></div>;
+ }
+ 
+-export function GameFrame({ children, friends, selectedFriendId, onSelectFriend, friendsLoading, friendsError, friendsEmptyMessage = "No playable Friends found.", friendsHiddenCount = 0, onConnect, wallet, confirmation, connection, walletActions, selectionMode = "picker", mode, onMenuChange }: GameFrameProps) {
++export function GameFrame({ children, friends, selectedFriendId, onSelectFriend, friendsLoading, friendsError, friendsEmptyMessage = "No playable Friends found.", friendsHiddenCount = 0, onConnect, wallet, confirmation, connection, walletActions, selectionMode = "picker", mode, onMenuChange, previewLabel }: GameFrameProps) {
+   const [menu, setMenu] = useState<"friends" | "wallet" | null>(null);
+   const friend = friends.find(value => value.id === selectedFriendId);
+   const selecting = selectionMode === "picker" && (!friend || menu === "friends");
+@@ -58,7 +60,7 @@ export function GameFrame({ children, friends, selectedFriendId, onSelectFriend,
+   return <section className="rf-game-frame" aria-label="Game container" data-mode={mode}>
+     <div className="rf-frame-chrome" inert={menuOpen || undefined}>
+       <div className="rf-frame-toolbar">
+-        <span className="rf-frame-mode">{mode === "preview" ? "Local preview" : "Live · Robinhood"}</span>
++        <span className="rf-frame-mode">{mode === "preview" ? previewLabel ?? "Local preview" : "Live · Robinhood"}</span>
+         {selectionMode === "host" ? <span className="rf-frame-selected-friend">{friend?.label ?? "Choose a Friend"}</span>
+           : <button type="button" onClick={() => setMenu("friends")} aria-label="Choose Friend">{friend?.label ?? "Choose Friend"}</button>}
+         <button type="button" onClick={() => setMenu("wallet")} disabled={!friend} aria-label="Open Friend wallet">Friend wallet</button>
 diff --git a/node_modules/@rarefriends/friendsdk/src/game-host.tsx b/node_modules/@rarefriends/friendsdk/src/game-host.tsx
 --- a/node_modules/@rarefriends/friendsdk/src/game-host.tsx
 +++ b/node_modules/@rarefriends/friendsdk/src/game-host.tsx
@@ -90,7 +186,7 @@ diff --git a/node_modules/@rarefriends/friendsdk/src/game-host.tsx b/node_module
  import { createLiveGameClient, LIVE_GAME_MAX_ORACLE_FEE, type LiveGameDeployment, type LiveGameOptions } from "./live-game.js";
  import { fundFriendWallet } from "./friend-funding.js";
  import type { ChanceWalletClient } from "./chain.js";
-@@ -121,15 +121,27 @@ export type ConnectedGameHostProps = {
+@@ -121,31 +121,50 @@ export type ConnectedGameHostProps = {
    /** Required only when a deployment is supplied. Stays in the trusted runtime. */
    walletClient?: ChanceWalletClient;
    assertActive?: () => void;
@@ -100,6 +196,11 @@ diff --git a/node_modules/@rarefriends/friendsdk/src/game-host.tsx b/node_module
 +   * to keep the session-local `createGamePreview` ledger. Ignored in live mode.
 +   */
 +  previewClient?: PreviewClientFactory;
++  /**
++   * Frame toolbar label in preview mode (Pixel Life patch), e.g. when `previewClient` is a server-backed
++   * simulated ledger rather than a session-local one. Defaults to "Local preview"; ignored in live mode.
++   */
++  previewLabel?: string;
  };
 +/** Context handed to `previewClient`, always from a freshly verified identity. */
 +export type PreviewClientContext = Readonly<{ friendId: bigint; walletAddress: string; chainId: number; definition: ChanceGameDefinition }>;
@@ -112,7 +213,7 @@ diff --git a/node_modules/@rarefriends/friendsdk/src/game-host.tsx b/node_module
 -function ConnectedViewport({ definition, selectedFriend, account, chainId, publicClient, frameUrl, revision = 0, picker, deployment, walletClient, assertActive }: ConnectedGameHostProps & { picker?: Picker }) {
 -  const ledgerState = useRef({ definition, revision: 0, ledgers: new Map<string, PreviewGameClient>() });
 -  if (ledgerState.current.definition !== definition) ledgerState.current = { definition, revision: ledgerState.current.revision + 1, ledgers: new Map() };
-+function ConnectedViewport({ definition, selectedFriend, account, chainId, publicClient, frameUrl, revision = 0, picker, deployment, walletClient, assertActive, previewClient }: ConnectedGameHostProps & { picker?: Picker }) {
++function ConnectedViewport({ definition, selectedFriend, account, chainId, publicClient, frameUrl, revision = 0, picker, deployment, walletClient, assertActive, previewClient, previewLabel }: ConnectedGameHostProps & { picker?: Picker }) {
 +  const ledgerState = useRef({ definition, previewClient, revision: 0, ledgers: new Map<string, GameClient>() });
 +  // A new definition or ledger factory starts fresh ledgers and remounts the gate.
 +  if (ledgerState.current.definition !== definition || ledgerState.current.previewClient !== previewClient) {
@@ -121,26 +222,38 @@ diff --git a/node_modules/@rarefriends/friendsdk/src/game-host.tsx b/node_module
    const ledgers = ledgerState.current.ledgers;
    const key = JSON.stringify([selectedFriend?.id.toString(), selectedFriend?.walletAddress?.toLowerCase(), account?.toLowerCase(), chainId]);
    const sessionKey = `${key}:${revision}:${ledgerState.current.revision}:${deployment?.game ?? "preview"}`;
-@@ -138,14 +150,15 @@ function ConnectedViewport({ definition, selectedFriend, account, chainId, publi
+-  if (!selectedFriend || !account || chainId === null || !publicClient) return <GameFrame mode={deployment ? "live" : "preview"} selectionMode={picker ? "picker" : "host"}
++  if (!selectedFriend || !account || chainId === null || !publicClient) return <GameFrame mode={deployment ? "live" : "preview"} previewLabel={previewLabel} selectionMode={picker ? "picker" : "host"}
+     friends={selectedFriend ? [selectedFriend] : []} selectedFriendId={selectedFriend?.id ?? null} {...picker}>
      <p className="rf-runtime-status" role="status">Connect a wallet and choose an owned hardwired Friend.</p>
    </GameFrame>;
    return <EligibilityGate key={sessionKey} definition={definition} picker={picker} friend={selectedFriend} account={account} chainId={chainId} publicClient={publicClient}
 -    frameUrl={frameUrl} ledgers={ledgers} deployment={deployment} walletClient={walletClient} assertActive={assertActive} />;
-+    frameUrl={frameUrl} ledgers={ledgers} deployment={deployment} walletClient={walletClient} assertActive={assertActive} previewClient={previewClient} />;
++    frameUrl={frameUrl} ledgers={ledgers} deployment={deployment} walletClient={walletClient} assertActive={assertActive} previewClient={previewClient} previewLabel={previewLabel} />;
  }
  
 -function EligibilityGate({ definition, picker, friend, account, chainId, publicClient, frameUrl, ledgers, deployment, walletClient, assertActive }: {
-+function EligibilityGate({ definition, picker, friend, account, chainId, publicClient, frameUrl, ledgers, deployment, walletClient, assertActive, previewClient }: {
++function EligibilityGate({ definition, picker, friend, account, chainId, publicClient, frameUrl, ledgers, deployment, walletClient, assertActive, previewClient, previewLabel }: {
    definition: ChanceGameDefinition; picker?: Picker;
    friend: GameFriend; account: string; chainId: number; publicClient: GenerationIdentityClient; frameUrl: string;
 -  ledgers: Map<string, PreviewGameClient>;
 +  ledgers: Map<string, GameClient>;
    deployment?: LiveGameDeployment; walletClient?: ChanceWalletClient; assertActive?: () => void;
 +  previewClient?: PreviewClientFactory;
++  previewLabel?: string;
  }) {
    const [attempt, setAttempt] = useState(0);
    const [verification, setVerification] = useState<{ client: GenerationIdentityClient; eligible: boolean; walletAddress?: string; error?: string } | null>(null);
-@@ -191,7 +204,9 @@ function EligibilityGate({ definition, picker, friend, account, chainId, publicC
+@@ -173,7 +192,7 @@ function EligibilityGate({ definition, picker, friend, account, chainId, publicC
+   }, [publicClient, friend.id, account, chainId, attempt]);
+   // A replaced read client invalidates verification during render, before effects.
+   const checked = verification?.client === publicClient ? verification : null;
+-  if (!checked?.eligible) return <GameFrame mode={deployment ? "live" : "preview"} selectionMode={picker ? "picker" : "host"} friends={[friend]} selectedFriendId={friend.id} {...picker}>
++  if (!checked?.eligible) return <GameFrame mode={deployment ? "live" : "preview"} previewLabel={previewLabel} selectionMode={picker ? "picker" : "host"} friends={[friend]} selectedFriendId={friend.id} {...picker}>
+     <div className="rf-runtime-status" role={checked?.error ? "alert" : "status"}>
+       <p>{checked?.error ?? "Checking ownership and hardwired eligibility…"}</p>
+       {checked?.error && <button type="button" onClick={() => { setVerification(null); setAttempt(value => value + 1); }}>Retry eligibility</button>}
+@@ -191,15 +210,17 @@ function EligibilityGate({ definition, picker, friend, account, chainId, publicC
    const ledgerKey = `${chainId}:${friend.id}:${checked.walletAddress!.toLowerCase()}`;
    let client = ledgers.get(ledgerKey);
    if (!client) {
@@ -151,6 +264,26 @@ diff --git a/node_modules/@rarefriends/friendsdk/src/game-host.tsx b/node_module
      ledgers.set(ledgerKey, client);
    }
    // Remount both the bridge and child on any identity/network/URL change.
+-  return <EmbeddedSession key={frameUrl} picker={picker} friend={{ ...friend, kind: "owned", walletAddress: checked.walletAddress }} client={client} definition={definition} frameUrl={frameUrl} />;
++  return <EmbeddedSession key={frameUrl} picker={picker} friend={{ ...friend, kind: "owned", walletAddress: checked.walletAddress }} client={client} definition={definition} frameUrl={frameUrl} previewLabel={previewLabel} />;
+ }
+ 
+-function EmbeddedSession({ friend, client, definition, live, frameUrl, picker }: {
+-  friend: GameFriend; client?: GameClient; definition: ChanceGameDefinition; live?: LiveGameOptions; frameUrl: string; picker?: Picker;
++function EmbeddedSession({ friend, client, definition, live, frameUrl, picker, previewLabel }: {
++  friend: GameFriend; client?: GameClient; definition: ChanceGameDefinition; live?: LiveGameOptions; frameUrl: string; picker?: Picker; previewLabel?: string;
+ }) {
+   const liveRef = useRef(live); liveRef.current = live;
+   const mode = (globalThis as RuntimeGlobal).__FRIENDSDK_LIVE__ !== false && live ? "live" : "preview";
+@@ -360,7 +381,7 @@ function EmbeddedSession({ friend, client, definition, live, frameUrl, picker }:
+       if (mounted.current) setFundMessage(cause instanceof Error ? cause.message : "RF transfer failed.");
+     } finally { fundingRef.current = false; if (mounted.current) { setFunding(false); bridge.current?.setPaused(paused.current); } }
+   } : undefined;
+-  return <GameFrame mode={mode} selectionMode={picker ? "picker" : "host"} friends={[friend]} selectedFriendId={friend.id}
++  return <GameFrame mode={mode} previewLabel={previewLabel} selectionMode={picker ? "picker" : "host"} friends={[friend]} selectedFriendId={friend.id}
+     wallet={{ balance: snapshot?.rfBalance, status: snapshot ? "ready" : "loading" }}
+     walletActions={(globalThis as RuntimeGlobal).__FRIENDSDK_LIVE__ !== false && live ? <div className="rf-runtime-connection">
+       <p>Transfer RF from your connected wallet to this Friend to buy bait. This is a real RF transfer plus ETH gas.</p>
 diff --git a/node_modules/@rarefriends/friendsdk/src/runtime.ts b/node_modules/@rarefriends/friendsdk/src/runtime.ts
 --- a/node_modules/@rarefriends/friendsdk/src/runtime.ts
 +++ b/node_modules/@rarefriends/friendsdk/src/runtime.ts

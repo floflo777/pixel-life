@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BITS, EMPTY_MASK, fromIndices, popcount, type RunSummary } from "@pl/shared";
-import { buildResults, replayNote, runSkill, scarNote, type ResultsInput } from "./results";
+import { bitsLabel, buildResults, replayNote, runSkill, scarNote, type ResultsInput } from "./results";
 
 const front = fromIndices(Array.from({ length: 82 }, (_, i) => i + 20));
 const summary = (lost: number[], score = 3410): RunSummary => ({
@@ -79,5 +79,18 @@ describe("replayNote", () => {
   });
   it("labels belt trials", () => {
     expect(replayNote("free", undefined, ack("ok"), false, "lime")).toBe("belt trial lime · replay verified ✓");
+  });
+});
+
+describe("results card bits (#32)", () => {
+  const ack = { runId: "r", verified: "pending", applied: true, scars: null } as const;
+  it("waits for the host's ack, then shows exactly the credited Bits", () => {
+    expect(bitsLabel(null, false)).toBe("…");
+    expect(bitsLabel({ ...ack, bits: 60 }, false)).toBe("+60");
+    expect(bitsLabel({ ...ack, bits: 0 }, false)).toBe("+0");
+  });
+  it("never shows a local estimate when the host credits nothing or the report failed", () => {
+    expect(bitsLabel(ack, false)).toBe("—");
+    expect(bitsLabel(null, true)).toBe("not saved");
   });
 });

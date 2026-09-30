@@ -64,10 +64,11 @@ export function bands(bps: readonly number[], l: DiagramLayout): Band[] {
   const height = diagramHeight(n, l);
   if (n === 0 || height <= 0) return [];
   const min = Math.max(0, l.minSlice ?? 3);
-  const total = bps.reduce((s, b) => s + Math.max(0, b), 0) || BPS;
-  // Reserve the minimum for every slice, share the rest by weight: slices sum to `height` exactly.
+  const total = bps.reduce((s, b) => s + Math.max(0, b), 0);
+  // Reserve the minimum for every slice, share the rest by weight: slices sum to `height` exactly. With no weight at
+  // all (every share 0) the rest is shared evenly, so the column is still tiled.
   const spare = Math.max(0, height - min * n);
-  const thick = bps.map((b) => min + (spare * Math.max(0, b)) / total);
+  const thick = bps.map((b) => min + (total > 0 ? (spare * Math.max(0, b)) / total : spare / n));
   const out: Band[] = [];
   let y = 0;
   const w = l.width;
