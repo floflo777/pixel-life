@@ -137,6 +137,8 @@ describe("room layouts", () => {
     const none = ROOMS.flatMap((slug) => roomZones(slug, new Set()).map((z) => z.target));
     for (const id of ["greenhouse", "daily-stone", "mend-board", "pixel-life", "seed-pack"]) expect(none).toContain(id);
     for (const id of ["handheld", "bump-sumo", "pixel-putt"]) expect(none).not.toContain(id);
+    // The main island shows every game once they ship.
+    expect(optionalVenues("plaza")).toEqual(["handheld", "seed-pack", "bump-sumo", "pixel-putt"]);
     expect(optionalVenues("pixel-arena")).toEqual(["bump-sumo"]);
     expect(optionalVenues("sky-docks")).toEqual(["pixel-putt"]);
     expect(roomZones("pixel-arena", new Set(["bump-sumo"])).map((z) => z.target)).toContain("bump-sumo");

@@ -249,7 +249,9 @@ export function coveringSeed(
 
 // ── Plaza ────────────────────────────────────────────────────────────────────────────────────────────────────────
 const PLAZA_HALL_Z = -9.3;
+/** East rim halls (doors facing west) and west rim halls (doors facing east), either side of the bridges. */
 const PLAZA_EAST_X = 9.3;
+const PLAZA_WEST_X = -7.6;
 const plaza: Layout = {
   island: {
     radius: 48,
@@ -270,8 +272,11 @@ const plaza: Layout = {
   cover: [
     ...landSamples(HUB_NAVMESHES.plaza, (p) => Math.sqrt(p.x * p.x + p.z * p.z) < 8.2),
     ...[-2, 0, 2].flatMap((x) => [PLAZA_HALL_Z - 0.9, PLAZA_HALL_Z, PLAZA_HALL_Z + 0.8].map((z) => ({ x, z }))),
-    // The east hall (Handheld Arcade) stands on land whether or not it is built, so the island never changes shape.
-    ...[-2, 0, 2].flatMap((z) => [PLAZA_EAST_X - 0.8, PLAZA_EAST_X, PLAZA_EAST_X + 0.8].map((x) => ({ x, z }))),
+    // The rim halls stand on land whether or not they are built, so the island never changes shape.
+    ...[-4, -2, 0, 2, 4].flatMap((z) => [PLAZA_EAST_X - 0.8, PLAZA_EAST_X, PLAZA_EAST_X + 0.8].map((x) => ({ x, z }))),
+    ...[-6.1, -4.2, -2.3, 2.3, 4.2, 6.1].flatMap((z) =>
+      [PLAZA_WEST_X - 0.8, PLAZA_WEST_X, PLAZA_WEST_X + 0.8].map((x) => ({ x, z })),
+    ),
   ],
   props: [
     { kind: "venue", x: 0, z: PLAZA_HALL_Z, name: "pixel-life", icon: PIXEL_LIFE_ICON, popPixel: [8, 12] },
@@ -279,10 +284,10 @@ const plaza: Layout = {
     { kind: "board", x: 5.6, z: -1.6, name: "notice-board", facing: 3 },
     { kind: "tree", x: -3.7, z: -9.6, canopy: "meadow", radius: 0.75, trunk: 6, seed: 7 },
     { kind: "tree", x: 4.7, z: -8.6, canopy: "paper", radius: 0.8, trunk: 5, seed: 8 },
-    { kind: "tree", x: -8.6, z: -3.6, canopy: "paper", radius: 0.85, trunk: 5, seed: 3 },
-    { kind: "tree", x: 8.9, z: -3.3, canopy: "meadow", radius: 0.75, trunk: 5, seed: 4 },
-    { kind: "tree", x: -9.1, z: 3.6, canopy: "sun", radius: 0.65, trunk: 4, seed: 5 },
-    { kind: "tree", x: 8.7, z: 4.4, canopy: "paper", radius: 0.7, trunk: 4, seed: 6 },
+    { kind: "tree", x: -6.4, z: -7.2, canopy: "paper", radius: 0.85, trunk: 5, seed: 3 },
+    { kind: "tree", x: 8.2, z: -5.9, canopy: "meadow", radius: 0.75, trunk: 5, seed: 4 },
+    { kind: "tree", x: -6.8, z: 7.3, canopy: "sun", radius: 0.65, trunk: 4, seed: 5 },
+    { kind: "tree", x: 8.0, z: 6.0, canopy: "paper", radius: 0.7, trunk: 4, seed: 6 },
     { kind: "tree", x: -5.4, z: 8.0, canopy: "sun", radius: 0.6, trunk: 4, seed: 9 },
     { kind: "tree", x: 6.0, z: 7.6, canopy: "meadow", radius: 0.6, trunk: 4, seed: 10 },
     { kind: "bench", x: -2.8, z: 8.5 },
@@ -356,14 +361,39 @@ const plaza: Layout = {
   ],
   bounds: { minX: -5.5, maxX: 5.5, minZ: -6.2, maxZ: 6.5 },
   restRadius: { rx: 10.1, rz: 10.1 },
+  // The main island shows the games (GDD §11: a Club Penguin-like plaza): Loose Pixels north, two halls on each rim.
   optional: [
     hallDoor(
       "handheld",
       "HANDHELD ARCADE",
       HANDHELD_ICON,
-      { x: PLAZA_EAST_X, z: 0, facing: 3 },
-      { area: rect(1810, -180, 1985, 180), spawn: [1500, 0] },
+      { x: PLAZA_EAST_X, z: -2.1, facing: 3 },
+      { area: rect(1700, -705, 1850, -345), spawn: [1450, -525] },
       { roof: PALETTE.lilac, roofDark: PALETTE.lilacDark },
+    ),
+    hallDoor(
+      "seed-pack",
+      "SEED PACK",
+      SEED_ICON(),
+      { x: PLAZA_EAST_X, z: 2.1, facing: 3 },
+      { area: rect(1700, 345, 1850, 705), spawn: [1450, 525] },
+      { roof: PALETTE.sun, roofDark: 0xd9b050 },
+    ),
+    hallDoor(
+      "bump-sumo",
+      "BUMP SUMO",
+      BUMP_SUMO_ICON,
+      { x: PLAZA_WEST_X, z: -4.2, facing: 1 },
+      { area: rect(-1580, -1190, -1440, -910), spawn: [-1250, -1050] },
+      { roof: PALETTE.pond, roofDark: 0x5f98c0 },
+    ),
+    hallDoor(
+      "pixel-putt",
+      "PIXEL PUTT",
+      PIXEL_PUTT_ICON,
+      { x: PLAZA_WEST_X, z: 4.2, facing: 1 },
+      { area: rect(-1580, 910, -1440, 1190), spawn: [-1250, 1050] },
+      { roof: PALETTE.meadowDrip, roofDark: PALETTE.meadowTuft },
     ),
   ],
 };
