@@ -17,7 +17,9 @@
     "run_worker_first": true,
   },
   "vars": {
-    "ORIGIN_URL": "https://rf-origin.ailog.fr",
+    // Staging origin (scripts/deploy.sh passes the same value with --var). Target: https://rf-origin.ailog.fr (proxied)
+    // once the Cloudflare token can create DNS records; see deploy/README.md.
+    "ORIGIN_URL": "https://rf-origin.app.ailog.fr",
     // Unset = DEFAULT_SHELL_CSP from src/headers.ts; "" = no shell CSP header.
   },
   // Secret (never in this file): `npx wrangler secret put ORIGIN_KEY` (same value as the server's ORIGIN_KEY).
