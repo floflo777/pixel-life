@@ -1,0 +1,15 @@
+# Temporary HTTP-only vhost used by scripts/deploy.sh to obtain the first Let's Encrypt certificate for the
+# origin host (HTTP-01, certbot --webroot). Replaced by origin.conf.template as soon as the certificate exists.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __ORIGIN_HOST__;
+    server_tokens off;
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/pixel-life-acme;
+        default_type text/plain;
+    }
+    location / {
+        return 444;
+    }
+}

@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="pixel-life-placeholder" content="1" />
+    <title>Pixel Life</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f6f3ee;
+        --fg: #1d1b19;
+        --muted: #6b645c;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #151413;
+          --fg: #f1ede7;
+          --muted: #a39b91;
+        }
+      }
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      body {
+        display: grid;
+        place-items: center;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          16px/1.5 system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        padding: 0 16px;
+        text-align: center;
+      }
+      h1 {
+        font-size: clamp(1.8rem, 6vw, 3rem);
+        margin: 0 0 0.25em;
+        letter-spacing: -0.02em;
+      }
+      p {
+        margin: 0;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Pixel Life — coming soon</h1>
+      <p>A Rare Friends social world. Staging build.</p>
+    </main>
+  </body>
+</html>
