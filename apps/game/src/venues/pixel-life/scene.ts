@@ -20,7 +20,16 @@ import {
   Vector3,
   type Material,
 } from "three";
-import { EMPTY_MASK, fromIndices, type FriendAppearance, type Hex64 } from "@pl/shared";
+import {
+  EMPTY_MASK,
+  fromIndices,
+  type FriendAppearance,
+  type Hex64,
+  type SimBodyView as BodyView,
+  type SimCreatureView as CreatureView,
+  type SimDebrisView as DebrisView,
+  type SimView as FullSimView,
+} from "@pl/shared";
 import { buildDetachableFriend, type DetachableFriend } from "../../friend";
 import { createBandMaterial } from "../../post/band-material";
 import { tagGlow, tagHalo, untagged } from "../../post/tags";
@@ -29,7 +38,7 @@ import { buildClouds } from "../../world/clouds";
 import { buildIsland, type IslandModel } from "../../world/island";
 import { attachProjectedShadow, type ProjectedShadow } from "../../world/projected-shadow";
 import { impactSquash, stretchFor } from "./juice";
-import { KIND, PX, type BodyView, type CreatureView, type DebrisView, type FullSimView } from "./sim-view";
+import { KIND, PX } from "./sim-module";
 
 /** World units per sim unit (1 u = 1 sprite pixel = the Friend's voxel size). */
 export const U = 0.15;

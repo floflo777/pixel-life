@@ -12,7 +12,7 @@ import { createStage, type SharedStage } from "../../../stage/stage";
 import type { QualityTier } from "../../../stage/quality";
 import { DAY_SKY } from "../../../post/post-pipeline";
 import type { VenueAudioExt } from "../audio";
-import { FAKE_SIM } from "../fake-sim";
+import { SHARED_SIM } from "../sim-module";
 import { createLoosePixelsVenue, type LoosePixelsInstance } from "../venue";
 
 const q = new URLSearchParams(location.search);
@@ -96,11 +96,10 @@ const host: VenueHost<SharedStage> = {
   },
 };
 const dev = document.querySelector<HTMLElement>("#dev") ?? document.body;
-dev.textContent = `sim: ${FAKE_SIM.name} · ${owner ? "owner" : "guest"} #${appearance.tokenId} · m mute`;
+dev.textContent = `sim: ${SHARED_SIM.name ?? "shared"} · ${owner ? "owner" : "guest"} #${appearance.tokenId} · m mute`;
 
 const auto = q.get("auto") as RunKind | null;
 const venue = createLoosePixelsVenue({
-  sim: FAKE_SIM,
   ...(auto ? { autoStart: auto } : {}),
   oneSwitch: flag("oneswitch"),
   noFlashes: flag("noflash"),

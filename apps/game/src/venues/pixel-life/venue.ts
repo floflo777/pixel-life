@@ -14,8 +14,11 @@ import {
   type EconomyQuote,
   type RunAck,
   type RunKind,
+  SimEvents as EV,
   type Sim,
   type SimConfig,
+  type SimEvent as AnyEvent,
+  type SimView as FullSimView,
 } from "@pl/shared";
 import type { NativeVenue, VenueHost, VenueInstance, VenueManifest } from "@pl/venue-kit";
 import { RUN_POSE, type OrbitPose } from "../../stage/camera-rig";
@@ -50,7 +53,7 @@ import {
 import { buildResults, scarNote, type ResultsModel } from "./results";
 import { disposePlaceholderCreatures, RunScene, U, type CreatureFactory } from "./scene";
 import { drawSilhouette, renderShareCard } from "./share-card";
-import { asFullView, EV, KIND, PX, type AnyEvent, type FullSimView, type SimModule } from "./sim-view";
+import { KIND, PX, SHARED_SIM, type SimModule } from "./sim-module";
 
 /** Stable venue id (hub door, results, leaderboards). */
 export const VENUE_ID = "pixel-life";
@@ -89,8 +92,8 @@ export const MANIFEST: VenueManifest = {
 
 /** Options when building the venue (the shell passes none; dev pages and tests use them). */
 export interface LoosePixelsOptions {
-  /** The sim implementation. Required: the real `@pl/shared` sim, or the fake stand-in for the dev page. */
-  readonly sim: SimModule;
+  /** The sim implementation; defaults to the real `@pl/shared` sim (the one the server replays). */
+  readonly sim?: SimModule;
   /** Creature renderer (the creatures module); placeholder voxel sprites otherwise. */
   readonly creatureFactory?: CreatureFactory;
   readonly arena?: string;
@@ -141,7 +144,7 @@ function runIdOf(): string {
 }
 
 /** Builds the venue around a sim implementation. */
-export function createLoosePixelsVenue(opts: LoosePixelsOptions): NativeVenue<GameStage> {
+export function createLoosePixelsVenue(opts: LoosePixelsOptions = {}): NativeVenue<GameStage> {
   return {
     manifest: MANIFEST,
     mount: async (host) => mountVenue(host, opts),
@@ -150,6 +153,7 @@ export function createLoosePixelsVenue(opts: LoosePixelsOptions): NativeVenue<Ga
 
 async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions): Promise<LoosePixelsInstance> {
   const stage = host.stage;
+  const simModule = opts.sim ?? SHARED_SIM;
   const now = opts.now ?? (() => performance.now());
   const audio = new RunAudio(host.audio as VenueAudioExt);
   const reduced = host.reducedMotion;
@@ -429,7 +433,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
 
   const onGulp = (e: AnyEvent, x: number, z: number): void => {
     switch (e.a) {
-      case EV.GULP_RUMBLE: {
+      case EV.GULP_EV_RUMBLE: {
         audio.cue("gulp.rumble");
         audio.music?.setMood("gulp");
         audio.music?.stinger("gulp");
@@ -439,29 +443,29 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         if (!reduced) dollyUntil = time + 12;
         break;
       }
-      case EV.GULP_BITE:
+      case EV.GULP_EV_BITE:
         beat({ kind: "gulpBite" });
         audio.cue("gulp.bite");
         scene.burst(x, z, [0xb9d984, 0xed927e, 0xb3a0d8], reduced ? 8 : 20, 0, 9);
         break;
-      case EV.GULP_TOOTH_HIT:
+      case EV.GULP_EV_TOOTH_HIT:
         beat({ kind: "tooth" }, projectSim(x, z, 2));
         audio.cue("gulp.tooth", { step: e.b ?? 0 });
         say(popCallout(100), x, z, 5);
         scene.burst(x, z, [0xf2ce68, 0xeeeeee], 6, 3, 6);
         break;
-      case EV.GULP_BURP:
+      case EV.GULP_EV_BURP:
         gulpBurped = true;
         audio.cue("gulp.burp");
         audio.music?.stinger("burp");
         hud.showBanner("gulp burped! +500", "lime", now(), 1600);
         break;
-      case EV.GULP_INHALE:
+      case EV.GULP_EV_INHALE:
         audio.cue("gulp.inhale");
         hud.showBanner("inhale!", "coral", now(), 900, true);
         break;
-      case EV.GULP_SINK:
-      case EV.GULP_REGROW:
+      case EV.GULP_EV_SINK:
+      case EV.GULP_EV_REGROW:
         audio.music?.setMood("normal");
         hud.setEdgeBand(null);
         dollyUntil = 0;
@@ -719,8 +723,8 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       arena: arenaName,
       friend: { front, lost: startLost, familyId: appearance.familyId, goldHeld: friendView().pub.goldHeld },
     };
-    sim = opts.sim.createSim(cfg);
-    cur = asFullView(sim.view());
+    sim = simModule.createSim(cfg);
+    cur = sim.view();
     prev = cur;
     log = new InputLog();
     steer.reset();
@@ -768,7 +772,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       runId: runIdOf(),
       seed: runCfg.seed,
       kind: runCfg.kind,
-      inputs: opts.sim.encodeInputs(inputs),
+      inputs: simModule.encodeInputs(inputs),
       claimed: summary,
     });
     // Let the end slow-mo play (0.5× for 500 ms), then iris to results.
@@ -929,10 +933,10 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     if (state !== "run" || paused || resumeAt > 0 || !sim || sim.done) return;
     const inputs = log.flush(sim.tick);
     sim.step(inputs);
-    const before = cur ?? asFullView(sim.view());
+    const before = cur ?? sim.view();
     prev = before;
-    cur = asFullView(sim.view());
-    for (const e of sim.drainEvents()) onEvent(e as unknown as AnyEvent, before, cur);
+    cur = sim.view();
+    for (const e of sim.drainEvents()) onEvent(e, before, cur);
     if (cur.phase !== lastPhase) lastPhase = cur.phase;
     if (sim.done) endRun();
   });
@@ -1069,7 +1073,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
           sim.step(log.flush(sim.tick));
           sim.drainEvents();
         }
-        cur = asFullView(sim.view());
+        cur = sim.view();
         prev = cur;
         if (sim.done) endRun();
       },

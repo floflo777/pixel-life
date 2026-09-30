@@ -20,7 +20,7 @@ import {
   type Callout,
 } from "./hud-format";
 import { drawSilhouette } from "./share-card";
-import { PX } from "./sim-view";
+import { PX } from "./sim-module";
 
 const CSS = `
 .lp-hud{position:absolute;inset:0;pointer-events:none;font-family:'Sometype Mono','Courier New',monospace;color:#111;
