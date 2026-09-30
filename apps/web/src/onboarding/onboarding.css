@@ -1,0 +1,474 @@
+/*
+ * Onboarding + economy explainer. Builds on the UI kit tokens (ui.css): paper cards, 2 px ink lines, stepped motion
+ * only, and nothing moves under reduced motion. Every class is prefixed `pl-onb-` / `pl-coach-`.
+ */
+
+/* ── First-visit cards ───────────────────────────────────────────────────────────────────────── */
+.pl-onb-card {
+  display: grid;
+  gap: 16px;
+  justify-items: center;
+  text-align: center;
+}
+.pl-onb-art {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 220px;
+  background-color: var(--pl-page);
+  background-image: radial-gradient(var(--pl-grid-dot) 1px, transparent 1.5px);
+  background-size: 16px 16px;
+  border: var(--pl-border);
+  padding: 12px 0 8px;
+}
+.pl-onb-copy {
+  display: grid;
+  gap: 8px;
+}
+.pl-onb-copy p {
+  margin: 0;
+}
+.pl-onb-lead {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.pl-onb-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px 8px;
+  font-size: 13px;
+}
+.pl-onb-dots {
+  display: flex;
+  gap: 6px;
+  list-style: none;
+  margin: 0 auto 0 0;
+  padding: 0;
+}
+.pl-onb-dots li {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--pl-line);
+}
+.pl-onb-dots li.is-on {
+  background: var(--pl-on-surface);
+}
+
+/* ── Demo Friend ─────────────────────────────────────────────────────────────────────────────── */
+.pl-onb-demo {
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+.pl-onb-demo-stage {
+  position: relative;
+}
+.pl-onb-loose {
+  position: absolute;
+  background: var(--pl-ink);
+  outline: 2px solid var(--pl-signal);
+  animation: pl-onb-blink 400ms steps(2, end) infinite;
+}
+.pl-onb-demo-cap {
+  min-height: 1.4em;
+}
+@keyframes pl-onb-blink {
+  50% {
+    outline-color: transparent;
+  }
+}
+
+/* ── RF flow explainer ───────────────────────────────────────────────────────────────────────── */
+.pl-onb-explainer {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.pl-onb-explainer .pl-card-head {
+  margin-bottom: 0;
+}
+.pl-onb-flow {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+.pl-onb-explainer--locked .pl-onb-flow {
+  margin-top: 0;
+}
+.pl-onb-pay {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin: 0;
+}
+.pl-onb-total {
+  font-size: 20px;
+}
+.pl-onb-diagram {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0;
+}
+.pl-onb-bands {
+  display: block;
+  overflow: visible;
+  animation: pl-onb-draw 320ms steps(4, end);
+}
+@keyframes pl-onb-draw {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+.pl-onb-src,
+.pl-onb-band {
+  stroke: var(--pl-line);
+  stroke-width: 1.5;
+  stroke-linejoin: miter;
+}
+.pl-onb-band {
+  fill-opacity: 0.85;
+}
+.pl-onb-packet {
+  fill: var(--pl-signal);
+  stroke: var(--pl-ink);
+  stroke-width: 1.5;
+}
+.pl-onb-fill--burn {
+  fill: var(--pl-ink);
+}
+.pl-onb-fill--stream {
+  fill: var(--pl-pond);
+}
+.pl-onb-fill--friend {
+  fill: var(--pl-coral);
+}
+.pl-onb-fill--creator {
+  fill: var(--pl-lilac);
+}
+.pl-onb-fill--seller {
+  fill: var(--pl-meadow);
+}
+.pl-onb-fill--reward {
+  fill: var(--pl-sun);
+}
+.pl-onb-fill--gold {
+  fill: var(--pl-gold);
+}
+.pl-onb-legs {
+  position: relative; /* rows' offsetTop is measured from here */
+  display: grid;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.pl-onb-leg {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 10px;
+  border: var(--pl-border);
+  background: var(--pl-surface);
+  overflow: hidden;
+}
+.pl-onb-leg-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  min-width: 0;
+}
+.pl-onb-leg-label {
+  font-weight: 700;
+}
+.pl-onb-leg-amt {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.pl-onb-leg-hint {
+  font-size: 12px;
+  line-height: 1.3;
+}
+.pl-onb-note,
+.pl-onb-simnote {
+  margin: 0;
+}
+.pl-onb-amount {
+  margin-top: 4px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 12px;
+}
+.pl-onb-amount label {
+  grid-column: 1 / -1;
+}
+.pl-onb-amount input[type="range"] {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--pl-on-surface);
+}
+.pl-onb-amount output {
+  min-width: 3ch;
+  text-align: right;
+}
+.pl-onb-odds td.pl-num-cell {
+  font-family: var(--pl-font-mono);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.pl-onb-odds caption {
+  text-align: left;
+  padding-bottom: 6px;
+}
+
+/* ── Why this is a real economy ──────────────────────────────────────────────────────────────── */
+.pl-onb-why {
+  display: grid;
+  gap: 12px;
+}
+.pl-onb-why .pl-card-head {
+  margin-bottom: 0;
+}
+.pl-onb-claims {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+}
+.pl-onb-claim {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+.pl-onb-claim p {
+  margin: 0;
+}
+.pl-onb-proof {
+  font-size: 11px;
+  line-height: 1.4;
+}
+.pl-onb-stat {
+  font-size: 22px;
+}
+.pl-onb-why-foot {
+  margin: 0;
+}
+.pl-onb-why-foot a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+/* ── Coachmarks ──────────────────────────────────────────────────────────────────────────────── */
+.pl-coach-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  padding: 16px;
+  pointer-events: none;
+  z-index: 20;
+}
+.pl-coach-layer--bottom {
+  align-items: flex-end;
+  padding-bottom: 88px;
+}
+.pl-coach-layer--top {
+  align-items: flex-start;
+  padding-top: 72px;
+}
+.pl-coach-live {
+  width: min(100%, 420px);
+}
+.pl-coach {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--pl-surface);
+  color: var(--pl-on-surface);
+  border: var(--pl-border);
+  box-shadow: 4px 4px 0 var(--pl-shadow);
+  animation: pl-onb-pop 160ms steps(2, end);
+}
+.pl-coach-text {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+@keyframes pl-onb-pop {
+  from {
+    transform: translateY(8px);
+  }
+}
+.pl-coach-art {
+  position: relative;
+  width: 56px;
+  height: 44px;
+  flex: none;
+}
+.pl-coach-friend {
+  position: absolute;
+  left: 18px;
+  top: 12px;
+  width: 20px;
+  height: 20px;
+  background: var(--pl-ink);
+  outline: 2px solid var(--pl-halo);
+}
+.pl-coach-band {
+  position: absolute;
+  left: 38px;
+  top: 21px;
+  height: 2px;
+  width: 0;
+  background: var(--pl-on-surface);
+  animation: pl-coach-pull 1.6s steps(4, end) infinite;
+}
+.pl-coach-hand {
+  position: absolute;
+  left: 36px;
+  top: 16px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--pl-on-surface);
+  background: var(--pl-signal);
+  animation: pl-coach-hand 1.6s steps(4, end) infinite;
+}
+@keyframes pl-coach-pull {
+  0% {
+    width: 0;
+  }
+  75% {
+    width: 16px;
+  }
+  100% {
+    width: 0;
+  }
+}
+@keyframes pl-coach-hand {
+  0% {
+    transform: translateX(0);
+  }
+  75% {
+    transform: translateX(14px);
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+}
+.pl-coach-px {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: var(--pl-ink);
+  outline: 2px solid var(--pl-signal);
+  animation: pl-coach-back 1.4s steps(4, end) infinite;
+}
+.pl-coach-px--a {
+  left: 2px;
+  top: 4px;
+  --dx: 20px;
+  --dy: 12px;
+}
+.pl-coach-px--b {
+  left: 48px;
+  top: 2px;
+  --dx: -14px;
+  --dy: 14px;
+}
+.pl-coach-px--c {
+  left: 6px;
+  top: 36px;
+  --dx: 16px;
+  --dy: -8px;
+}
+@keyframes pl-coach-back {
+  0%,
+  20% {
+    transform: translate(0, 0);
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy));
+    opacity: 0;
+  }
+}
+
+/* ── Phones ──────────────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .pl-onb-art {
+    min-height: 190px;
+  }
+  .pl-onb-lead {
+    font-size: 16px;
+  }
+  .pl-coach {
+    grid-template-columns: auto 1fr;
+  }
+  .pl-coach .pl-btn {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+  .pl-coach-layer--bottom {
+    padding-bottom: 72px;
+  }
+}
+
+/* ── Reduced motion: hold still ──────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .pl-onb-loose,
+  .pl-onb-bands,
+  .pl-coach,
+  .pl-coach-band,
+  .pl-coach-hand,
+  .pl-coach-px {
+    animation: none !important;
+  }
+}
+:root[data-reduced-motion="true"] .pl-onb-loose,
+:root[data-reduced-motion="true"] .pl-onb-bands,
+:root[data-reduced-motion="true"] .pl-coach,
+:root[data-reduced-motion="true"] .pl-coach-band,
+:root[data-reduced-motion="true"] .pl-coach-hand,
+:root[data-reduced-motion="true"] .pl-coach-px {
+  animation: none !important;
+}
+:root[data-reduced-motion="true"] .pl-coach-band {
+  width: 16px;
+}
+:root[data-reduced-motion="true"] .pl-coach-hand {
+  transform: translateX(14px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pl-coach-band {
+    width: 16px;
+  }
+  .pl-coach-hand {
+    transform: translateX(14px);
+  }
+}
+
+.pl-onb-em {
+  text-decoration: underline;
+  text-decoration-thickness: 3px;
+  text-decoration-color: var(--pl-coral);
+  text-underline-offset: 3px;
+}
