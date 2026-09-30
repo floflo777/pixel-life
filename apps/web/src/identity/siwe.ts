@@ -6,7 +6,7 @@ import { type Address, stringToHex } from "viem";
 import { createSiweMessage } from "viem/siwe";
 
 /** The statement shown in the wallet (the UI repeats it). */
-export const SIWE_STATEMENT = "Sign in to Pixel Life. No transaction, no cost.";
+export const SIWE_STATEMENT = "Sign in to Loose Pixels. No transaction, no cost.";
 /** Message lifetime; the server additionally bounds it by the nonce TTL. */
 export const SIWE_TTL_MS = 10 * 60 * 1000;
 
@@ -15,7 +15,7 @@ export interface SiweInput {
   address: Address;
   chainId: number;
   nonce: string;
-  /** Page origin, e.g. "https://pixel-life.florent-g.workers.dev". Domain = its host. */
+  /** Page origin, e.g. "https://loose-pixels.florent-g.workers.dev". Domain = its host. */
   origin: string;
   now: Date;
 }

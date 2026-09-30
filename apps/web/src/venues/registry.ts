@@ -2,7 +2,7 @@
  * Venues the hub can open (architecture §1b.2). Native venues run in-process with the full `VenueHost`; SDK venues are
  * stock FriendSDK games mounted unmodified in the sandbox through `ConnectedGameHost`.
  *
- * Pixel Life itself lands with T5 (`pixelLifeVenue` from `@pl/game`): until then the "pixel-life" slot mounts a
+ * Loose Pixels (the flagship venue, internally "pixel-life") lands with T5 (`pixelLifeVenue` from `@pl/game`): until then the "pixel-life" slot mounts a
  * clearly labelled placeholder native venue that exercises the whole host contract (stage, input, audio, scars,
  * results). Replace `load` below when the real venue is merged.
  */
@@ -16,11 +16,11 @@ export interface NativeVenueEntry {
   load(): Promise<NativeVenue<GameStage>>;
 }
 
-/** Pixel Life (placeholder until T5). */
+/** Loose Pixels, the flagship venue (placeholder until T5). */
 export const PIXEL_LIFE: NativeVenueEntry = {
   manifest: {
     id: "pixel-life",
-    name: "Pixel Life",
+    name: "Loose Pixels",
     version: "0.0.1-placeholder",
     kind: "native",
     room: "pixel-arena",

@@ -51,9 +51,19 @@ export function fakeSession(initial: Partial<FriendWalletSnapshot> = {}) {
   };
   const listeners = new Set<() => void>();
   const provider = { request: vi.fn(async () => "0xdeadbeef" as unknown) };
+  const publish = (): void => {
+    for (const l of [...listeners]) l();
+  };
   const emit = (patch: Partial<FriendWalletSnapshot>): void => {
     snap = { ...snap, ...patch, revision: snap.revision + 1 };
-    for (const l of [...listeners]) l();
+    publish();
+  };
+  /** Like the real SDK session on accountsChanged/chainChanged: `connecting` (revision + 1), then the result. */
+  const reread = (patch: Partial<FriendWalletSnapshot>): void => {
+    snap = { ...snap, status: "connecting", account: null, chainId: null, revision: snap.revision + 1 };
+    publish();
+    snap = { ...snap, ...patch };
+    publish();
   };
   const session: WalletSessionLike = {
     getSnapshot: () => snap,
@@ -74,7 +84,7 @@ export function fakeSession(initial: Partial<FriendWalletSnapshot> = {}) {
     disconnect: vi.fn(() => emit({ status: "disconnected", account: null, chainId: null })),
     dispose: vi.fn(),
   };
-  return { session, provider, emit, snap: () => snap };
+  return { session, provider, emit, reread, snap: () => snap };
 }
 
 /** A scripted API with `vi.fn` methods (only the ones the flows use). */

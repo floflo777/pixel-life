@@ -1,5 +1,5 @@
 /**
- * A placeholder native venue in the "pixel-life" slot until the real Pixel Life venue (T5) is merged. It is honest about
+ * A placeholder native venue in the "pixel-life" slot until the real Loose Pixels venue (T5) is merged. It is honest about
  * being a stand-in, but exercises the whole `VenueHost` contract: it renders your voxel Friend on the shared stage,
  * takes taps / keys, plays cues, knocks pixels off (capped by `runScarCap`), and reports a result so the shell's
  * results card, scars, Bits and share card all run for real.
@@ -37,7 +37,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, text = "
   return e;
 }
 
-/** The placeholder venue (manifest = the Pixel Life slot, version marked `placeholder`). */
+/** The placeholder venue (manifest = the Loose Pixels slot, version marked `placeholder`). */
 export const placeholderPixelLife: NativeVenue<GameStage> = {
   manifest: PIXEL_LIFE.manifest,
   async mount(host) {
@@ -72,7 +72,7 @@ export const placeholderPixelLife: NativeVenue<GameStage> = {
     // Venue HUD (venues own their in-run HUD; the shell's top bar stays).
     const root = stage.renderer.domElement.parentElement ?? document.body;
     const hud = el("div", "venue-hud");
-    const badge = el("p", "venue-badge mono", "placeholder venue · the real Pixel Life lands soon");
+    const badge = el("p", "venue-badge mono", "placeholder venue · the real Loose Pixels arena lands soon");
     const timer = el("p", "venue-timer num");
     const score = el("p", "venue-score num");
     const px = el("p", "venue-px mono");

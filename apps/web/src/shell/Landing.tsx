@@ -92,7 +92,7 @@ export default function Landing() {
         fallback={you ? <FriendSprite view={you} scale={10} /> : null}
       />
       <div className="landing-copy">
-        <h1 className="display landing-title">Pixel Life</h1>
+        <h1 className="display landing-title">Loose Pixels</h1>
         <p className="landing-rule">
           every hit knocks a pixel off.
           <br />

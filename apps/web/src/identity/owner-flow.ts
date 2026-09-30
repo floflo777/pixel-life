@@ -148,28 +148,44 @@ export function createOwnerFlow(deps: OwnerFlowDeps): OwnerFlow {
     return id.mode === "owner" ? id : null;
   };
 
+  /** A revision change seen during a transient state, handled at the next stable snapshot. */
+  let pendingChange = false;
   const onSession = (): void => {
     const snap = session.getSnapshot();
-    const changed = snap.revision !== revision;
+    if (snap.revision !== revision) pendingChange = true;
     revision = snap.revision;
     store.set((s) => ({ ...s, wallet: snap }));
-    if (!changed) return;
+    // The SDK re-reads on account/chain events as `connecting` (revision + 1, no account), then publishes the result
+    // without a new revision: act on the settled snapshot.
     if (snap.status === "connecting" || snap.status === "switching-network") {
       setFlow({ step: "connecting" });
       return;
     }
+    const changed = pendingChange;
+    pendingChange = false;
+    // Without a revision change only a waiting flow is re-derived (e.g. a silent restore that ended disconnected).
+    const cur = store.get().flow;
+    const waiting =
+      cur.step === "idle" ||
+      cur.step === "connecting" ||
+      cur.step === "unavailable" ||
+      cur.step === "wrong-chain" ||
+      (cur.step === "error" && cur.at === "connect");
+    if (!changed && !waiting) return;
     const account = lower(snap.account);
     const owner = currentOwner();
     const rightChain = snap.chainId === ROBINHOOD_CHAIN_ID;
-    // A stable change of account or chain (or a disconnect after we saw a wallet) invalidates the binding.
-    const accountChanged = owner !== null && account !== null && account !== lower(owner.address);
-    const lostWallet = seenAccount !== null && (account === null || !rightChain);
-    if (owner && (accountChanged || lostWallet)) {
-      identity.dropOwner("Your wallet account or network changed. Pick your Friend again.");
-      void api.unbindFriend().catch(() => undefined);
+    if (changed) {
+      // A stable change of account or chain (or a disconnect after we saw a wallet) invalidates the binding.
+      const accountChanged = owner !== null && account !== null && account !== lower(owner.address);
+      const lostWallet = seenAccount !== null && (account === null || !rightChain);
+      if (owner && (accountChanged || lostWallet)) {
+        identity.dropOwner("Your wallet account or network changed. Pick your Friend again.");
+        void api.unbindFriend().catch(() => undefined);
+      }
+      if (account !== seenAccount) signedAddress = null;
+      store.set((s) => ({ ...s, friends: [], hiddenCount: 0 }));
     }
-    if (account !== seenAccount) signedAddress = null;
-    store.set((s) => ({ ...s, friends: [], hiddenCount: 0 }));
     if (snap.status === "unavailable") setFlow({ step: "unavailable" });
     else if (snap.status === "error") setFlow({ step: "error", at: "connect", message: snap.error ?? "Wallet error." });
     else if (snap.status === "wrong-network") setFlow({ step: "wrong-chain" });

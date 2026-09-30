@@ -1,6 +1,6 @@
 /**
  * `/play`: the venue manager's native path. Ensures someone is playing (guest with a loaner if nobody is), mounts the
- * Pixel Life venue slot with a `VenueHost`, then shows the results card. The venue remounts whenever the identity
+ * Loose Pixels venue slot with a `VenueHost`, then shows the results card. The venue remounts whenever the identity
  * revision changes (loaner swap, owner bound or dropped).
  */
 import { popcount } from "@pl/shared";

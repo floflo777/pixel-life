@@ -164,6 +164,18 @@ describe("owner flow", () => {
     expect(t.readOwnedFriends).toHaveBeenLastCalledWith(expect.anything(), OTHER);
   });
 
+  it("handles the SDK's two-phase re-read on accountsChanged (connecting, then the new account)", async () => {
+    const t = setup();
+    await t.flow.connect();
+    await flush();
+    await t.flow.select("344030");
+    t.w.reread({ status: "connected", account: OTHER, chainId: 4663 });
+    await flush();
+    expect(t.identity.store.get().identity.mode).toBe("guest");
+    expect(t.identity.store.get().notice).toMatch(/changed/);
+    expect(t.readOwnedFriends).toHaveBeenLastCalledWith(expect.anything(), OTHER);
+  });
+
   it("drops the bound Friend when the chain changes", async () => {
     const t = setup();
     await t.flow.connect();

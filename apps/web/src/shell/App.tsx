@@ -82,7 +82,7 @@ export function App() {
   const { identity } = useStore(services.identity.store);
 
   useEffect(() => {
-    document.title = match && match.route.name !== "landing" ? `${match.route.title} · Pixel Life` : "Pixel Life";
+    document.title = match && match.route.name !== "landing" ? `${match.route.title} · Loose Pixels` : "Loose Pixels";
   }, [match]);
 
   useEffect(() => {

@@ -64,8 +64,8 @@ export function Hud({ current }: { current: string | null }) {
 
   return (
     <header className="hud" data-testid="hud">
-      <Link to="/" className="hud-brand display" aria-label="Pixel Life home">
-        pixel life
+      <Link to="/" className="hud-brand display" aria-label="Loose Pixels home">
+        loose pixels
       </Link>
       {identity.mode === "guest" && (
         <FriendCard view={identity.view} label={identity.loaner.label ?? `#${identity.loaner.appearance.tokenId}`} />

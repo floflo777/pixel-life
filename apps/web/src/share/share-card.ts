@@ -70,7 +70,7 @@ export function drawShareCard(ctx: CanvasRenderingContext2D, d: ShareCardData): 
   ctx.fillStyle = INK;
   ctx.textBaseline = "top";
   ctx.font = `700 34px ${DISPLAY}`;
-  ctx.fillText("PIXEL LIFE", tx, 96);
+  ctx.fillText("LOOSE PIXELS", tx, 96);
   ctx.font = `700 30px ${DISPLAY}`;
   ctx.fillText(`#${d.appearance.tokenId}${d.loaned ? " · ON LOAN" : ""}`, tx, 150);
   ctx.font = `400 22px ${MONO}`;
@@ -110,12 +110,12 @@ export async function shareCardBlob(d: ShareCardData): Promise<Blob> {
 /** Shares the card with the OS share sheet when files are supported; otherwise downloads it. Returns what happened. */
 export async function shareOrDownload(d: ShareCardData): Promise<"shared" | "downloaded" | "cancelled"> {
   const blob = await shareCardBlob(d);
-  const file = new File([blob], `pixel-life-${d.appearance.tokenId}.png`, { type: "image/png" });
+  const file = new File([blob], `loose-pixels-${d.appearance.tokenId}.png`, { type: "image/png" });
   const nav = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
   const data: ShareData = {
     files: [file],
-    title: "Pixel Life",
-    text: `I scored ${d.score} in Pixel Life.`,
+    title: "Loose Pixels",
+    text: `I scored ${d.score} in Loose Pixels.`,
     url: d.link,
   };
   if (nav.share && nav.canShare?.(data)) {

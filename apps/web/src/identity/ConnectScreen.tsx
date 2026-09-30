@@ -127,7 +127,7 @@ function FlowView({ flow }: { flow: OwnerFlow }) {
         {f.step === "connecting" && <Loading label="waiting for your wallet" />}
         {f.step === "wrong-chain" && (
           <>
-            <p role="alert">Your wallet is on another network. Pixel Life Friends live on Robinhood Chain.</p>
+            <p role="alert">Your wallet is on another network. Rare Friends live on Robinhood Chain.</p>
             <Button variant="now" onClick={() => void flow.switchNetwork()} data-testid="switch-chain">
               switch to Robinhood Chain ({ROBINHOOD_CHAIN_ID})
             </Button>

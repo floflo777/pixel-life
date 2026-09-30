@@ -25,7 +25,7 @@ export interface RouteDef {
   name: string;
   /** Path pattern with `:params`. */
   path: string;
-  /** Document title (prefixed to "· Pixel Life"). */
+  /** Document title (followed by "· Loose Pixels"). */
   title: string;
   owner: "shell" | "pages";
   /** `pages` routes: the file name in `src/pages` (without `.tsx`). */
@@ -45,7 +45,7 @@ export const ROUTES: readonly RouteDef[] = [
   {
     name: "landing",
     path: "/",
-    title: "Pixel Life",
+    title: "Loose Pixels",
     owner: "shell",
     load: () => import("../shell/Landing.js"),
     bleed: true,
