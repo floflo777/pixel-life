@@ -42,7 +42,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ["packages/shared/src/sim/**/*.ts"],
+    files: ["packages/shared/src/sim/**/*.ts", "packages/shared/src/venues/**/*.ts"],
     ignores: ["**/*.test.ts"],
     rules: {
       "no-restricted-properties": ["error", ...NON_DETERMINISTIC],
