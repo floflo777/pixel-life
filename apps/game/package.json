@@ -10,9 +10,12 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p dev/tsconfig.json",
     "dev": "vite --config dev/vite.config.ts",
-    "shots": "node dev/screenshot.mjs"
+    "shots": "node dev/screenshot.mjs",
+    "shots:hub": "node dev/hub-shots.mjs"
   },
   "dependencies": {
+    "@pl/audio": "*",
+    "@pl/realtime": "*",
     "@pl/shared": "*",
     "@pl/venue-kit": "*",
     "three": "^0.186.1"

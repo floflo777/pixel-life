@@ -1,0 +1,210 @@
+{
+  "plaza": {
+    "tier": "high",
+    "scene": {
+      "presences": 25,
+      "resting": 10,
+      "near": 24,
+      "far": 11,
+      "impostorPixels": 764,
+      "tags": 12,
+      "bubbles": 3,
+      "frameMs": 1
+    },
+    "post": {
+      "sceneCalls": 63,
+      "sceneTriangles": 68872,
+      "maskCalls": 5,
+      "totalCalls": 70,
+      "internalWidth": 640,
+      "internalHeight": 360
+    },
+    "sceneJsMs": {
+      "p50": 0.7000000011175871,
+      "p95": 2.5,
+      "max": 13.900000000372529
+    }
+  },
+  "plaza-60": {
+    "tier": "medium",
+    "scene": {
+      "presences": 60,
+      "resting": 10,
+      "near": 16,
+      "far": 54,
+      "impostorPixels": 3211,
+      "tags": 12,
+      "bubbles": 11,
+      "frameMs": 1.300000000745058
+    },
+    "post": {
+      "sceneCalls": 47,
+      "sceneTriangles": 75484,
+      "maskCalls": 6,
+      "totalCalls": 55,
+      "internalWidth": 640,
+      "internalHeight": 360
+    },
+    "sceneJsMs": {
+      "p50": 1.099999999627471,
+      "p95": 4.800000000745058,
+      "max": 12.5
+    }
+  },
+  "plaza-rm": {
+    "tier": "high",
+    "scene": {
+      "presences": 25,
+      "resting": 10,
+      "near": 24,
+      "far": 11,
+      "impostorPixels": 786,
+      "tags": 12,
+      "bubbles": 3,
+      "frameMs": 0.5
+    },
+    "post": {
+      "sceneCalls": 63,
+      "sceneTriangles": 69388,
+      "maskCalls": 5,
+      "totalCalls": 70,
+      "internalWidth": 640,
+      "internalHeight": 360
+    },
+    "sceneJsMs": {
+      "p50": 0.6999999992549419,
+      "p95": 3.099999999627471,
+      "max": 15
+    }
+  },
+  "phone": {
+    "tier": "medium",
+    "scene": {
+      "presences": 17,
+      "resting": 10,
+      "near": 16,
+      "far": 11,
+      "impostorPixels": 779,
+      "tags": 12,
+      "bubbles": 1,
+      "frameMs": 0.3999999985098839
+    },
+    "post": {
+      "sceneCalls": 41,
+      "sceneTriangles": 64292,
+      "maskCalls": 4,
+      "totalCalls": 47,
+      "internalWidth": 180,
+      "internalHeight": 320
+    },
+    "sceneJsMs": {
+      "p50": 0.5,
+      "p95": 1.599999999627471,
+      "max": 13.800000000745058
+    }
+  },
+  "pixel-arena": {
+    "tier": "high",
+    "scene": {
+      "presences": 9,
+      "resting": 5,
+      "near": 14,
+      "far": 0,
+      "impostorPixels": 0,
+      "tags": 12,
+      "bubbles": 4,
+      "frameMs": 0.30000000074505806
+    },
+    "post": {
+      "sceneCalls": 38,
+      "sceneTriangles": 28148,
+      "maskCalls": 3,
+      "totalCalls": 43,
+      "internalWidth": 640,
+      "internalHeight": 360
+    },
+    "sceneJsMs": {
+      "p50": 0.5,
+      "p95": 1.5,
+      "max": 10.799999998882413
+    }
+  },
+  "seed-booth": {
+    "tier": "high",
+    "scene": {
+      "presences": 9,
+      "resting": 5,
+      "near": 14,
+      "far": 0,
+      "impostorPixels": 0,
+      "tags": 12,
+      "bubbles": 3,
+      "frameMs": 0.5
+    },
+    "post": {
+      "sceneCalls": 38,
+      "sceneTriangles": 26138,
+      "maskCalls": 3,
+      "totalCalls": 43,
+      "internalWidth": 640,
+      "internalHeight": 360
+    },
+    "sceneJsMs": {
+      "p50": 0.5,
+      "p95": 7.199999999254942,
+      "max": 18.5
+    }
+  },
+  "sky-docks": {
+    "tier": "high",
+    "scene": {
+      "presences": 9,
+      "resting": 5,
+      "near": 14,
+      "far": 0,
+      "impostorPixels": 0,
+      "tags": 12,
+      "bubbles": 5,
+      "frameMs": 0.2000000011175871
+    },
+    "post": {
+      "sceneCalls": 37,
+      "sceneTriangles": 24674,
+      "maskCalls": 2,
+      "totalCalls": 41,
+      "internalWidth": 640,
+      "internalHeight": 360
+    },
+    "sceneJsMs": {
+      "p50": 0.5,
+      "p95": 1.5,
+      "max": 9.799999998882413
+    }
+  },
+  "daily-gate": {
+    "tier": "high",
+    "scene": {
+      "presences": 9,
+      "resting": 5,
+      "near": 14,
+      "far": 0,
+      "impostorPixels": 0,
+      "tags": 12,
+      "bubbles": 4,
+      "frameMs": 0.2999999988824129
+    },
+    "post": {
+      "sceneCalls": 36,
+      "sceneTriangles": 26052,
+      "maskCalls": 1,
+      "totalCalls": 39,
+      "internalWidth": 640,
+      "internalHeight": 360
+    },
+    "sceneJsMs": {
+      "p50": 0.40000000037252903,
+      "p95": 1.400000000372529,
+      "max": 10.5
+    }
+  }
+}
