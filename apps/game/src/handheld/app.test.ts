@@ -1,11 +1,20 @@
-import { EMPTY_MASK, RUN_TICKS, frontMask, isSubset, popcount, type SimConfig } from "@pl/shared";
+import {
+  EMPTY_MASK,
+  RUN_TICKS,
+  createSim,
+  decodeInputs,
+  frontMask,
+  isSubset,
+  popcount,
+  replay,
+  type SimConfig,
+} from "@pl/shared";
 import { createTestVenueHost, manifestProblems, testFriendView, type TestVenueHarness } from "@pl/venue-kit";
 import { describe, expect, it } from "vitest";
-import { HANDHELD_RESULT_VENUE, HandheldApp, type ScreenName } from "./app.js";
+import { HANDHELD_ARENA, HANDHELD_VENUE_ID, HandheldApp, type ScreenName } from "./app.js";
 import { devHost } from "./dev/fixture.js";
-import { createFakeSim } from "./fake-sim.js";
 import type { Button } from "./input.js";
-import { HANDHELD_MANIFEST, integerScale, jsonInputEncoder } from "./mount.js";
+import { HANDHELD_MANIFEST, integerScale } from "./mount.js";
 
 function makeApp(harness: TestVenueHarness, opts: { skipBoot?: boolean; sims?: SimConfig[] } = {}) {
   return new HandheldApp({
@@ -13,9 +22,8 @@ function makeApp(harness: TestVenueHarness, opts: { skipBoot?: boolean; sims?: S
     now: () => harness.now,
     createSim: (cfg) => {
       opts.sims?.push(cfg);
-      return createFakeSim(cfg);
+      return createSim(cfg);
     },
-    encodeInputs: jsonInputEncoder,
     newRunId: () => "run-1",
     skipBoot: opts.skipBoot ?? true,
   });
@@ -58,7 +66,7 @@ describe("HandheldApp", () => {
     expect(app.lcd.buf.every((v) => v === 0 || v === 1)).toBe(true);
   });
 
-  it("plays a whole run on the sim and reports it on the shared Pixel Life board", async () => {
+  it("plays a whole run on the shared sim and reports a log the server can replay", async () => {
     const h = devHost();
     const sims: SimConfig[] = [];
     const app = makeApp(h, { sims });
@@ -76,12 +84,19 @@ describe("HandheldApp", () => {
     await flush();
     const res = h.log.results[0];
     expect(res).toBeDefined();
-    expect(res?.venueId).toBe(HANDHELD_RESULT_VENUE);
-    expect(res?.claimed.ticks).toBe(RUN_TICKS);
-    const inputs = JSON.parse(new TextDecoder().decode(res?.inputs)) as { k: number; pow: number }[];
+    expect(res?.venueId).toBe(HANDHELD_VENUE_ID);
+    expect(res?.claimed.ticks).toBeGreaterThan(0);
+    expect(res?.claimed.ticks).toBeLessThanOrEqual(RUN_TICKS);
+    const inputs = decodeInputs(res?.inputs ?? new Uint8Array());
     expect(inputs[0]).toMatchObject({ k: 0, pow: 1023 });
-    expect(h.log.cues).toContain("fling");
-    expect(h.log.cues).toContain("time-up");
+    // What the server does (runs/replay-worker): rebuild the config and replay the decoded log headlessly.
+    const cfg = sims[0];
+    if (!cfg || !res) throw new Error("no run");
+    expect(cfg).toMatchObject({ arena: HANDHELD_ARENA, seed: res.seed, kind: res.kind });
+    expect(cfg.friend.gold).toBeUndefined();
+    expect(replay(cfg, inputs)).toEqual(res.claimed);
+    expect(h.log.cues).toContain("fling.release");
+    expect(h.log.cues).toContain("run.end");
     // The run's new scars were applied to the Friend by the host.
     const lost = h.host.identity.friend.pub.scars.lost;
     expect(isSubset(res?.claimed.lostDelta ?? EMPTY_MASK, lost)).toBe(true);
@@ -118,15 +133,16 @@ describe("HandheldApp", () => {
     const h = devHost();
     const app = makeApp(h);
     const menu = app.menu().map((m) => m.id);
-    expect(menu).toEqual(["play", "daily", "regrow"]);
+    expect(menu).toEqual(["play", "daily", "regrow", "exit"]);
     expect(app.menu()[2]?.sub).toContain("SIM");
-    tap(app, "left"); // wraps to Regrow
+    tap(app, "left"); // wraps to Exit
+    tap(app, "left"); // Regrow
     tap(app, "ok");
     await flush();
     frames(app, 2);
     expect(h.log.receipts).toHaveLength(1);
     expect(popcount(h.host.identity.friend.pub.scars.lost)).toBe(0);
-    expect(app.menu().map((m) => m.id)).toEqual(["play", "daily"]);
+    expect(app.menu().map((m) => m.id)).toEqual(["play", "daily", "exit"]);
   });
 
   it("refuses Regrow for guests with a message instead of calling the economy", async () => {
@@ -136,6 +152,7 @@ describe("HandheldApp", () => {
     const h = createTestVenueHost({ identity: { mode: "guest", friend, loaned: true } });
     const app = makeApp(h);
     expect(app.menu().map((m) => m.id)).toContain("regrow");
+    tap(app, "left");
     tap(app, "left");
     tap(app, "ok");
     await flush();
@@ -172,7 +189,9 @@ describe("HandheldApp", () => {
     const h = createTestVenueHost();
     const app = makeApp(h);
     tap(app, "ok");
-    frames(app, 60);
+    // Wait out the sim's drop-in lock (no fling before 1.2 s).
+    frames(app, 90);
+    expect(app.runView?.friend.ready).toBe(true);
     const before = app.runView?.friend.bodies[0]?.x ?? 0;
     app.pointer("down", 64, 64);
     app.pointer("move", 30, 64);
@@ -197,20 +216,62 @@ describe("venue glue", () => {
   });
 });
 
-describe("fake sim", () => {
-  it("is deterministic for a config and input log", () => {
-    const f = testFriendView();
-    const cfg: SimConfig = {
-      seed: 42,
-      kind: "free",
-      arena: "meadow",
-      friend: { front: frontMask(f.appearance), lost: EMPTY_MASK, familyId: 1, goldHeld: 0 },
+describe("exit, mute and reduced motion", () => {
+  it("exits to the hub from the home menu's EXIT item, once", () => {
+    const h = createTestVenueHost();
+    const app = makeApp(h);
+    tap(app, "left"); // wraps to Exit
+    tap(app, "ok");
+    expect(h.log.exits).toEqual(["done"]);
+    app.exit("quit");
+    expect(h.log.exits).toEqual(["done"]);
+  });
+
+  it("exiting mid-run abandons the run without reporting it", async () => {
+    const h = createTestVenueHost();
+    const app = makeApp(h);
+    tap(app, "ok");
+    frames(app, 30);
+    app.exit("quit");
+    frames(app, 30);
+    await flush();
+    expect(h.log.exits).toEqual(["quit"]);
+    expect(h.log.results).toHaveLength(0);
+  });
+
+  it("plays no cues while the device or the shell is muted", () => {
+    const h = createTestVenueHost();
+    const app = makeApp(h);
+    app.muted = true;
+    tap(app, "ok");
+    frames(app, 120);
+    expect(h.log.cues).toHaveLength(0);
+    app.muted = false;
+    h.setMuted(true);
+    frames(app, 120);
+    expect(h.log.cues).toHaveLength(0);
+  });
+
+  it("keeps the home Friend still under reduced motion", () => {
+    const render = (reducedMotion: boolean) => {
+      const h = createTestVenueHost({ reducedMotion });
+      const app = makeApp(h);
+      const shots = new Set<string>();
+      for (let i = 0; i < 120; i++) if (app.update(1 / 30)) shots.add(app.lcd.buf.slice(20, 90 * 128).join(""));
+      return shots.size;
     };
-    const run = () => {
-      const sim = createFakeSim(cfg);
-      while (!sim.done) sim.step(sim.tick % 90 === 0 ? [{ t: sim.tick, k: 0, ang: sim.tick % 4096, pow: 700 }] : []);
-      return sim.summary();
-    };
-    expect(run()).toEqual(run());
+    expect(render(true)).toBeLessThan(render(false));
+  });
+});
+
+describe("home scars", () => {
+  it("heals scars on the home screen as wall-clock time passes (effectiveLost)", () => {
+    const h = devHost();
+    const app = makeApp(h);
+    const lostNow = () => app.menu().find((m) => m.id === "regrow")?.sub ?? "none";
+    const before = lostNow();
+    expect(before).not.toBe("none");
+    h.advance(30 * 24 * 3600 * 1000);
+    expect(lostNow()).toBe("none");
   });
 });

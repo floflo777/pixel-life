@@ -1,4 +1,4 @@
-// Browser screenshots of the handheld playground (device frame, desktop + 360 px phone) with headless Chromium.
+// Browser screenshots of the Handheld Arcade venue overlay (desktop + 360 px phone) with headless Chromium.
 //   node apps/game/src/handheld/dev/shots.mjs      (headless renders + GIF: npx tsx apps/game/src/handheld/dev/render.ts)
 import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -12,11 +12,12 @@ const server = await createServer({ configFile: `${here}vite.config.ts`, server:
 await server.listen();
 const base = server.resolvedUrls?.local[0];
 if (!base) throw new Error("vite did not report a URL");
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-webgl", "--ignore-gpu-blocklist"] });
 const SHOTS = [
-  { name: "device-home", query: "skipBoot&heal=1800", viewport: { width: 900, height: 900 } },
-  { name: "device-run", query: "skipBoot", viewport: { width: 900, height: 900 }, play: true },
-  { name: "device-phone", query: "skipBoot", viewport: { width: 360, height: 640 }, scale: 2, play: true },
+  { name: "venue-home", query: "skipBoot&heal=1800", viewport: { width: 1280, height: 800 } },
+  { name: "venue-run", query: "skipBoot", viewport: { width: 1280, height: 800 }, play: true },
+  { name: "venue-phone", query: "skipBoot", viewport: { width: 360, height: 640 }, scale: 2, play: true },
+  { name: "venue-phone-home", query: "skipBoot&heal=1800", viewport: { width: 360, height: 640 }, scale: 2 },
 ];
 try {
   for (const s of SHOTS) {
@@ -29,15 +30,16 @@ try {
     await page.waitForTimeout(1200);
     if (s.play) {
       await page.keyboard.press("Space");
-      await page.waitForTimeout(1500);
+      // The sim's drop-in lock (1.2 s) plus a beat.
+      await page.waitForTimeout(2000);
       // Aim, charge for 0.6 s and fling; let the juice play out.
       await page.keyboard.press("ArrowLeft");
       await page.keyboard.down("Space");
       await page.waitForTimeout(600);
       await page.keyboard.up("Space");
-      await page.waitForTimeout(700);
+      await page.waitForTimeout(3500);
     }
-    await page.locator(".plhh").screenshot({ path: `${outDir}${s.name}.png` });
+    await page.screenshot({ path: `${outDir}${s.name}.png` });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     console.log(s.name, overflow ? "HORIZONTAL OVERFLOW" : "fits", errors.length ? errors : "no errors");
     await page.close();

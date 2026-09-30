@@ -1,6 +1,6 @@
 /**
- * Headless capture of the handheld (no browser: the rasteriser is pure). Drives the real app with the venue-kit test
- * host and a small bot through boot → home (scars healing, time-lapsed) → run → results, and writes to `dev/shots/`:
+ * Headless capture of the handheld (no browser: the rasteriser is pure). Drives the real app on the shared `@pl/shared`
+ * sim with the venue-kit test host and a small bot through boot → home (scars healing, time-lapsed) → run → results, and writes to `dev/shots/`:
  * stills of every screen at ×4, a frame-3-style contact sheet, and `handheld.gif` (needs `ffmpeg` on PATH).
  *
  *   npx tsx apps/game/src/handheld/dev/render.ts
@@ -9,12 +9,10 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { HandheldApp } from "../app.js";
-import { createFakeSim } from "../fake-sim.js";
 import { RUN_TICKS } from "@pl/shared";
 import { LCD_SIZE, INK_RGB, PAPER_RGB, Lcd } from "../lcd.js";
 import { drawRun } from "../screens.js";
 import { frame3Scene } from "./frame3-scene.js";
-import { jsonInputEncoder } from "../mount.js";
 import { toScreen } from "../project.js";
 import { devHost } from "./fixture.js";
 
@@ -66,8 +64,6 @@ const harness = devHost();
 const app = new HandheldApp({
   host: harness.host,
   now: () => harness.now,
-  createSim: createFakeSim,
-  encodeInputs: jsonInputEncoder,
   newRunId: () => "dev-run",
 });
 
@@ -82,11 +78,16 @@ const frame3Impact = f3lcd.buf.slice();
 const gif: Uint8Array[] = [];
 let recording = true;
 const stills: Record<string, Uint8Array> = {};
+let gulpFrames = 0;
 const inkShare = (b: Uint8Array) => b.reduce((a, v) => a + v, 0) / b.length;
 
 function tick(ms: number): boolean {
   const fresh = app.update(ms / 1000);
   if (fresh && recording) gif.push(app.lcd.buf.slice());
+  // Old Gulp with its teeth out (a few frames in, so the wedge and teeth are both on screen).
+  const g = app.runView?.gulp;
+  if (fresh && g && g.teeth.length > 0 && g.wedgeOn && (gulpFrames++ === 20 || !stills.gulp))
+    stills.gulp = app.lcd.buf.slice();
   return fresh;
 }
 function wait(ms: number, each?: () => void): void {
@@ -116,8 +117,12 @@ for (let i = 0; i < 70; i++) {
   if (i === 20) stills.home = app.lcd.buf.slice();
 }
 tap("right");
+wait(200);
+tap("right");
 wait(500);
 stills.homeRegrow = app.lcd.buf.slice();
+tap("left");
+wait(200);
 tap("left");
 wait(300);
 tap("ok");
@@ -143,18 +148,18 @@ function bot(): void {
   const g = toScreen(b.x, b.z);
   const s = toScreen(t.x, t.z);
   // A human-ish bot: aims with some error, so creatures get their bites in and pixels fly.
-  const err = Math.sin(flings++ * 2.7) * 0.6;
+  const err = Math.sin(flings++ * 2.7) * 0.3;
   const dx0 = s.sx - g.sx;
   const dy0 = s.sy - g.sy;
   const dx = dx0 * Math.cos(err) - dy0 * Math.sin(err);
   const dy = dx0 * Math.sin(err) + dy0 * Math.cos(err);
   const n = Math.hypot(dx, dy) || 1;
-  const len = Math.min(40, Math.max(10, n * 0.55));
+  const len = Math.min(40, Math.max(24, n * 0.8));
   app.pointer("down", 64, 64);
   app.pointer("up", 64 - (dx / n) * len, 64 - (dy / n) * len);
-  cooldown = 100;
+  cooldown = 40;
 }
-for (let i = 0; i < 60 * 9; i++) {
+for (let i = 0; i < 60 * 16; i++) {
   bot();
   if (tick(1000 / 60)) {
     const v = app.runView;
@@ -242,3 +247,6 @@ execFileSync("ffmpeg", [
 rmSync(tmp, { recursive: true, force: true });
 console.log(`wrote ${Object.keys(stills).length} stills, sheet.png and handheld.gif (${gif.length} frames) to ${out}`);
 console.log("run log:", harness.log.results.length, "results,", harness.log.cues.length, "cues");
+console.log(
+  JSON.stringify(harness.log.cues.reduce<Record<string, number>>((m, c) => ((m[c] = (m[c] ?? 0) + 1), m), {})),
+);

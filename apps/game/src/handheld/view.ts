@@ -1,7 +1,8 @@
 /**
- * What the handheld needs from the simulation. These are structural subsets of the richer `SimView` that T2's sim
- * (branch feat/sim) adds to `@pl/shared`: same field names, units and meanings, so the real `createSim` plugs straight
- * into `mountHandheld({ createSim })` once it lands. Until then `fake-sim.ts` provides a local stand-in.
+ * What the handheld needs from the simulation: structural subsets of `@pl/shared`'s `SimView` / `Sim` (same field
+ * names, units and meanings). The production sim is the shared deterministic `createSim` (the code the server replays);
+ * keeping the renderer on a subset lets tests and the frame-3 restaging hand-place views. `SimView` must stay assignable
+ * to `HandheldView` (checked at compile time in `mount.ts`, where `createSim` is the default factory).
  *
  * Units: u (1 u = 1 sprite pixel), ticks at SIM_HZ; ground plane x (right) / z (toward the camera), y up.
  */
@@ -45,6 +46,8 @@ export interface HandheldFriendView {
   readonly ringout: number;
   /** Chain multiplier in tenths (10 = ×1.0). */
   readonly chain: number;
+  /** Per pixel id: owning body index when a Mitosis Friend has split (absent = everything on body 0). */
+  readonly half?: Uint8Array;
 }
 
 /** A loose pixel cube. */
@@ -94,6 +97,24 @@ export interface HandheldView {
   readonly debris: readonly HandheldDebrisView[];
   readonly creatures: readonly HandheldCreatureView[];
   readonly stats: { readonly recovered: number; readonly smashed: number; readonly lost: number };
+  /** Wave phase 0..4 (drop-in, snack time, rush, frenzy, last light); absent = 0. */
+  readonly phase?: number;
+  /** Old Gulp (absent = never surfaces): teeth ring, telegraph shadow and the bitten-out wedge. */
+  readonly gulp?: HandheldGulpView;
+  /** Gulp star crumbs to sweep (+20 each). */
+  readonly crumbs?: readonly { readonly x: number; readonly z: number; readonly left: number }[];
+}
+
+/** Old Gulp as the handheld draws it. `phase`: 0 idle, 1 shadow, 2 teeth out, 3 inhaling, 4 sunk, 5 done. */
+export interface HandheldGulpView {
+  readonly phase: number;
+  readonly wedgeDir: number;
+  readonly wedgeHalf: number;
+  readonly wedgeOn: boolean;
+  readonly shadow: boolean;
+  readonly teeth: readonly { readonly x: number; readonly z: number; readonly lit: boolean; readonly hit: boolean }[];
+  readonly mouthX: number;
+  readonly mouthZ: number;
 }
 
 /** A running simulation as the handheld drives it (a structural subset of `@pl/shared` `Sim`). */
@@ -106,8 +127,8 @@ export interface HandheldSim {
   summary(): RunSummary;
 }
 
-/** Builds a sim at tick 0 (the real one is `createSim` from the shared sim). */
+/** Builds a sim at tick 0 (production: `createSim` from `@pl/shared`). */
 export type HandheldSimFactory = (cfg: SimConfig) => HandheldSim;
 
-/** Encodes the input log for `reportResult` (the real one is `encodeInputs` from the shared sim). */
+/** Encodes the input log for `reportResult` (production: `encodeInputs` from `@pl/shared`). */
 export type InputEncoder = (inputs: readonly SimInput[]) => Uint8Array;
