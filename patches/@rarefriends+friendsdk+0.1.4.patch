@@ -1,0 +1,162 @@
+diff --git a/node_modules/@rarefriends/friendsdk/dist/game-host.d.ts b/node_modules/@rarefriends/friendsdk/dist/game-host.d.ts
+--- a/node_modules/@rarefriends/friendsdk/dist/game-host.d.ts
++++ b/node_modules/@rarefriends/friendsdk/dist/game-host.d.ts
+@@ -1,5 +1,5 @@
+ import { type GameFriend } from "./game-frame.js";
+-import { type ChanceGameDefinition } from "./game.js";
++import { type ChanceGameDefinition, type GameClient } from "./game.js";
+ import { type LiveGameDeployment } from "./live-game.js";
+ import type { ChanceWalletClient } from "./chain.js";
+ import { type GenerationIdentityClient } from "./identity.js";
+@@ -33,6 +33,20 @@ export type ConnectedGameHostProps = {
+     /** Required only when a deployment is supplied. Stays in the trusted runtime. */
+     walletClient?: ChanceWalletClient;
+     assertActive?: () => void;
++    /**
++     * Optional preview ledger factory (Pixel Life patch). Called only after the fresh
++     * eligibility gate passes, once per verified chain/Friend/canonical wallet; omit it
++     * to keep the session-local `createGamePreview` ledger. Ignored in live mode.
++     */
++    previewClient?: PreviewClientFactory;
+ };
++/** Context handed to `previewClient`, always from a freshly verified identity. */
++export type PreviewClientContext = Readonly<{
++    friendId: bigint;
++    walletAddress: string;
++    chainId: number;
++    definition: ChanceGameDefinition;
++}>;
++export type PreviewClientFactory = (context: PreviewClientContext) => GameClient;
+ /** SDK frame for a project that already supplies connection and selection. */
+ export declare function ConnectedGameHost(props: ConnectedGameHostProps): import("react/jsx-runtime").JSX.Element;
+diff --git a/node_modules/@rarefriends/friendsdk/dist/game-host.js b/node_modules/@rarefriends/friendsdk/dist/game-host.js
+--- a/node_modules/@rarefriends/friendsdk/dist/game-host.js
++++ b/node_modules/@rarefriends/friendsdk/dist/game-host.js
+@@ -73,18 +73,20 @@ function WalletViewport({ session, publicClient, ...props }) {
+ }
+ /** SDK frame for a project that already supplies connection and selection. */
+ export function ConnectedGameHost(props) { return _jsx(ConnectedViewport, { ...props }); }
+-function ConnectedViewport({ definition, selectedFriend, account, chainId, publicClient, frameUrl, revision = 0, picker, deployment, walletClient, assertActive }) {
+-    const ledgerState = useRef({ definition, revision: 0, ledgers: new Map() });
+-    if (ledgerState.current.definition !== definition)
+-        ledgerState.current = { definition, revision: ledgerState.current.revision + 1, ledgers: new Map() };
++function ConnectedViewport({ definition, selectedFriend, account, chainId, publicClient, frameUrl, revision = 0, picker, deployment, walletClient, assertActive, previewClient }) {
++    const ledgerState = useRef({ definition, previewClient, revision: 0, ledgers: new Map() });
++    // A new definition or ledger factory starts fresh ledgers and remounts the gate.
++    if (ledgerState.current.definition !== definition || ledgerState.current.previewClient !== previewClient) {
++        ledgerState.current = { definition, previewClient, revision: ledgerState.current.revision + 1, ledgers: new Map() };
++    }
+     const ledgers = ledgerState.current.ledgers;
+     const key = JSON.stringify([selectedFriend?.id.toString(), selectedFriend?.walletAddress?.toLowerCase(), account?.toLowerCase(), chainId]);
+     const sessionKey = `${key}:${revision}:${ledgerState.current.revision}:${deployment?.game ?? "preview"}`;
+     if (!selectedFriend || !account || chainId === null || !publicClient)
+         return _jsx(GameFrame, { mode: deployment ? "live" : "preview", selectionMode: picker ? "picker" : "host", friends: selectedFriend ? [selectedFriend] : [], selectedFriendId: selectedFriend?.id ?? null, ...picker, children: _jsx("p", { className: "rf-runtime-status", role: "status", children: "Connect a wallet and choose an owned hardwired Friend." }) });
+-    return _jsx(EligibilityGate, { definition: definition, picker: picker, friend: selectedFriend, account: account, chainId: chainId, publicClient: publicClient, frameUrl: frameUrl, ledgers: ledgers, deployment: deployment, walletClient: walletClient, assertActive: assertActive }, sessionKey);
++    return _jsx(EligibilityGate, { definition: definition, picker: picker, friend: selectedFriend, account: account, chainId: chainId, publicClient: publicClient, frameUrl: frameUrl, ledgers: ledgers, deployment: deployment, walletClient: walletClient, assertActive: assertActive, previewClient: previewClient }, sessionKey);
+ }
+-function EligibilityGate({ definition, picker, friend, account, chainId, publicClient, frameUrl, ledgers, deployment, walletClient, assertActive }) {
++function EligibilityGate({ definition, picker, friend, account, chainId, publicClient, frameUrl, ledgers, deployment, walletClient, assertActive, previewClient }) {
+     const [attempt, setAttempt] = useState(0);
+     const [verification, setVerification] = useState(null);
+     useEffect(() => {
+@@ -126,7 +128,9 @@ function EligibilityGate({ definition, picker, friend, account, chainId, publicC
+     const ledgerKey = `${chainId}:${friend.id}:${checked.walletAddress.toLowerCase()}`;
+     let client = ledgers.get(ledgerKey);
+     if (!client) {
+-        client = createGamePreview(definition, { friendId: friend.id, stake: maximumPrize(definition) * 10n, rfBalance: 20n * RF }).client;
++        // Reached only after the gate above: the factory never sees an unverified identity.
++        client = previewClient?.({ friendId: friend.id, walletAddress: checked.walletAddress, chainId, definition })
++            ?? createGamePreview(definition, { friendId: friend.id, stake: maximumPrize(definition) * 10n, rfBalance: 20n * RF }).client;
+         ledgers.set(ledgerKey, client);
+     }
+     // Remount both the bridge and child on any identity/network/URL change.
+diff --git a/node_modules/@rarefriends/friendsdk/dist/runtime.d.ts b/node_modules/@rarefriends/friendsdk/dist/runtime.d.ts
+--- a/node_modules/@rarefriends/friendsdk/dist/runtime.d.ts
++++ b/node_modules/@rarefriends/friendsdk/dist/runtime.d.ts
+@@ -1,3 +1,3 @@
+-export { GameHost, ConnectedGameHost, type GameHostProps, type ConnectedGameHostProps } from "./game-host.js";
++export { GameHost, ConnectedGameHost, type GameHostProps, type ConnectedGameHostProps, type PreviewClientContext, type PreviewClientFactory } from "./game-host.js";
+ export { GameSession, type GameComponentProps } from "./game-session.js";
+ export { createLiveGameClient, LIVE_GAME_MAX_ORACLE_FEE, type LiveGameDeployment, type LiveGameOptions } from "./live-game.js";
+diff --git a/node_modules/@rarefriends/friendsdk/src/game-host.tsx b/node_modules/@rarefriends/friendsdk/src/game-host.tsx
+--- a/node_modules/@rarefriends/friendsdk/src/game-host.tsx
++++ b/node_modules/@rarefriends/friendsdk/src/game-host.tsx
+@@ -6,7 +6,7 @@ import { GENERATION_SPRITE_MANIFEST } from "./generation-sprites.js";
+ const WALLET_ABI = parseAbi(["function tokenBoundAccount(uint256 tokenId) view returns (address)"]);
+ import { bindGameFrame, type GameArguments, type GameMethod } from "./frame-bridge.js";
+ import { GameFrame, type GameConfirmation, type GameFriend, type GameFrameProps } from "./game-frame.js";
+-import { createGamePreview, maximumPrize, RF, type ChanceGameDefinition, type GameSnapshot, type GameClient, type PreviewGameClient } from "./game.js";
++import { createGamePreview, maximumPrize, RF, type ChanceGameDefinition, type GameSnapshot, type GameClient } from "./game.js";
+ import { createLiveGameClient, LIVE_GAME_MAX_ORACLE_FEE, type LiveGameDeployment, type LiveGameOptions } from "./live-game.js";
+ import { fundFriendWallet } from "./friend-funding.js";
+ import type { ChanceWalletClient } from "./chain.js";
+@@ -121,15 +121,27 @@ export type ConnectedGameHostProps = {
+   /** Required only when a deployment is supplied. Stays in the trusted runtime. */
+   walletClient?: ChanceWalletClient;
+   assertActive?: () => void;
++  /**
++   * Optional preview ledger factory (Pixel Life patch). Called only after the fresh
++   * eligibility gate passes, once per verified chain/Friend/canonical wallet; omit it
++   * to keep the session-local `createGamePreview` ledger. Ignored in live mode.
++   */
++  previewClient?: PreviewClientFactory;
+ };
++/** Context handed to `previewClient`, always from a freshly verified identity. */
++export type PreviewClientContext = Readonly<{ friendId: bigint; walletAddress: string; chainId: number; definition: ChanceGameDefinition }>;
++export type PreviewClientFactory = (context: PreviewClientContext) => GameClient;
+ type Picker = Pick<GameFrameProps, "friends" | "onSelectFriend" | "connection" | "friendsLoading" | "friendsError" | "friendsEmptyMessage" | "friendsHiddenCount" | "onConnect">;
+ 
+ /** SDK frame for a project that already supplies connection and selection. */
+ export function ConnectedGameHost(props: ConnectedGameHostProps) { return <ConnectedViewport {...props} />; }
+ 
+-function ConnectedViewport({ definition, selectedFriend, account, chainId, publicClient, frameUrl, revision = 0, picker, deployment, walletClient, assertActive }: ConnectedGameHostProps & { picker?: Picker }) {
+-  const ledgerState = useRef({ definition, revision: 0, ledgers: new Map<string, PreviewGameClient>() });
+-  if (ledgerState.current.definition !== definition) ledgerState.current = { definition, revision: ledgerState.current.revision + 1, ledgers: new Map() };
++function ConnectedViewport({ definition, selectedFriend, account, chainId, publicClient, frameUrl, revision = 0, picker, deployment, walletClient, assertActive, previewClient }: ConnectedGameHostProps & { picker?: Picker }) {
++  const ledgerState = useRef({ definition, previewClient, revision: 0, ledgers: new Map<string, GameClient>() });
++  // A new definition or ledger factory starts fresh ledgers and remounts the gate.
++  if (ledgerState.current.definition !== definition || ledgerState.current.previewClient !== previewClient) {
++    ledgerState.current = { definition, previewClient, revision: ledgerState.current.revision + 1, ledgers: new Map() };
++  }
+   const ledgers = ledgerState.current.ledgers;
+   const key = JSON.stringify([selectedFriend?.id.toString(), selectedFriend?.walletAddress?.toLowerCase(), account?.toLowerCase(), chainId]);
+   const sessionKey = `${key}:${revision}:${ledgerState.current.revision}:${deployment?.game ?? "preview"}`;
+@@ -138,14 +150,15 @@ function ConnectedViewport({ definition, selectedFriend, account, chainId, publi
+     <p className="rf-runtime-status" role="status">Connect a wallet and choose an owned hardwired Friend.</p>
+   </GameFrame>;
+   return <EligibilityGate key={sessionKey} definition={definition} picker={picker} friend={selectedFriend} account={account} chainId={chainId} publicClient={publicClient}
+-    frameUrl={frameUrl} ledgers={ledgers} deployment={deployment} walletClient={walletClient} assertActive={assertActive} />;
++    frameUrl={frameUrl} ledgers={ledgers} deployment={deployment} walletClient={walletClient} assertActive={assertActive} previewClient={previewClient} />;
+ }
+ 
+-function EligibilityGate({ definition, picker, friend, account, chainId, publicClient, frameUrl, ledgers, deployment, walletClient, assertActive }: {
++function EligibilityGate({ definition, picker, friend, account, chainId, publicClient, frameUrl, ledgers, deployment, walletClient, assertActive, previewClient }: {
+   definition: ChanceGameDefinition; picker?: Picker;
+   friend: GameFriend; account: string; chainId: number; publicClient: GenerationIdentityClient; frameUrl: string;
+-  ledgers: Map<string, PreviewGameClient>;
++  ledgers: Map<string, GameClient>;
+   deployment?: LiveGameDeployment; walletClient?: ChanceWalletClient; assertActive?: () => void;
++  previewClient?: PreviewClientFactory;
+ }) {
+   const [attempt, setAttempt] = useState(0);
+   const [verification, setVerification] = useState<{ client: GenerationIdentityClient; eligible: boolean; walletAddress?: string; error?: string } | null>(null);
+@@ -191,7 +204,9 @@ function EligibilityGate({ definition, picker, friend, account, chainId, publicC
+   const ledgerKey = `${chainId}:${friend.id}:${checked.walletAddress!.toLowerCase()}`;
+   let client = ledgers.get(ledgerKey);
+   if (!client) {
+-    client = createGamePreview(definition, { friendId: friend.id, stake: maximumPrize(definition) * 10n, rfBalance: 20n * RF }).client;
++    // Reached only after the gate above: the factory never sees an unverified identity.
++    client = previewClient?.({ friendId: friend.id, walletAddress: checked.walletAddress!, chainId, definition })
++      ?? createGamePreview(definition, { friendId: friend.id, stake: maximumPrize(definition) * 10n, rfBalance: 20n * RF }).client;
+     ledgers.set(ledgerKey, client);
+   }
+   // Remount both the bridge and child on any identity/network/URL change.
+diff --git a/node_modules/@rarefriends/friendsdk/src/runtime.ts b/node_modules/@rarefriends/friendsdk/src/runtime.ts
+--- a/node_modules/@rarefriends/friendsdk/src/runtime.ts
++++ b/node_modules/@rarefriends/friendsdk/src/runtime.ts
+@@ -1,4 +1,4 @@
+-export { GameHost, ConnectedGameHost, type GameHostProps, type ConnectedGameHostProps } from "./game-host.js";
++export { GameHost, ConnectedGameHost, type GameHostProps, type ConnectedGameHostProps, type PreviewClientContext, type PreviewClientFactory } from "./game-host.js";
+ export { GameSession, type GameComponentProps } from "./game-session.js";
+ 
+ export { createLiveGameClient, LIVE_GAME_MAX_ORACLE_FEE, type LiveGameDeployment, type LiveGameOptions } from "./live-game.js";
