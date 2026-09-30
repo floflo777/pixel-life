@@ -104,6 +104,8 @@ describe("diagram bands", () => {
           expect(b.t1 - b.t0).toBeLessThanOrEqual(layout.rowH - 8 + 0.02);
         });
       }),
+      // All-zero shares (CI seed -894671826, #36) must still tile the column.
+      { examples: [[[0]], [[0, 0, 0]]] },
     );
   });
   it("a 1 % share is still drawn and gets one packet", () => {
