@@ -38,7 +38,7 @@ describe("migration runner", () => {
     await expect(migrate(db.pool, [...migrations, broken])).rejects.toThrow(/9999_broken.sql failed/);
     const exists = await db.pool.query("SELECT to_regclass('ok_part') AS t");
     expect(exists.rows[0].t).toBeNull();
-    expect(await latestAppliedMigration(db.pool)).toBe("0001_init.sql");
+    expect(await latestAppliedMigration(db.pool)).toBe(migrations.at(-1)?.name);
   });
 });
 

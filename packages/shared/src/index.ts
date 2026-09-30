@@ -7,4 +7,5 @@ export * from "./economy.js";
 export * from "./seedpack.js";
 export * from "./sim-types.js";
 export * from "./protocol.js";
+export * from "./market.js";
 export { assertNever, fnv1a32, mulberry32 } from "./util.js";
