@@ -18,6 +18,7 @@ import { Button, FriendPortrait, LinkButton } from "../ui/index.js";
 export default function Landing() {
   const s = useServices();
   const { identity } = useStore(s.identity.store);
+  const { guestMode } = useStore(s.flags);
   const [loaners, setLoaners] = useState<LoanerFriend[] | null>(null);
   const [pick, setPick] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -98,26 +99,36 @@ export default function Landing() {
           grab it back, or regrow it.
         </p>
         <div className="landing-cta">
-          <Button
-            variant="now"
-            size="big"
-            onClick={() => void play()}
-            disabled={starting}
-            data-testid="play-now"
-            aria-describedby="play-now-hint"
-          >
-            {starting ? "starting…" : "▶ Play now"}
-          </Button>
-          <p id="play-now-hint" className="mono landing-hint">
-            no wallet needed · you play a loaned Friend
-          </p>
+          {guestMode || identity.mode === "owner" ? (
+            <>
+              <Button
+                variant="now"
+                size="big"
+                onClick={() => void play()}
+                disabled={starting}
+                data-testid="play-now"
+                aria-describedby="play-now-hint"
+              >
+                {starting ? "starting…" : "▶ Play now"}
+              </Button>
+              <p id="play-now-hint" className="mono landing-hint">
+                {identity.mode === "owner"
+                  ? `you play #${identity.view.appearance.tokenId}`
+                  : "no wallet needed · you play a loaned Friend"}
+              </p>
+            </>
+          ) : (
+            <p className="mono landing-hint" role="note">
+              guest play is paused on this server · bring your own Friend to play
+            </p>
+          )}
           {identity.mode === "owner" ? (
             <LinkButton to="/sky">enter the sky as #{identity.view.appearance.tokenId}</LinkButton>
           ) : (
             <LinkButton to="/connect">Use my Friend</LinkButton>
           )}
         </div>
-        {identity.mode !== "owner" && loaners && (
+        {identity.mode !== "owner" && guestMode && loaners && (
           <label className="loaner-chip mono">
             <span>on loan ·</span>
             <select

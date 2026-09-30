@@ -17,6 +17,7 @@ import type {
   HomeView,
   InboxItem,
   InboxReadReq,
+  MeRes,
   MarketActionRes,
   MarketBookRes,
   MarketBuyRes,
@@ -83,6 +84,8 @@ export interface ApiOptions {
   onNotOwner?: () => void;
   /** Called on `unauthorized` (session missing or expired). */
   onUnauthorized?: () => void;
+  /** Called with every successful `GET /api/me` answer (server flags such as `guestMode`, the Bits balance). */
+  onMe?: (me: MeRes) => void;
 }
 
 /** Codes whose copy always wins over the server's sentence (transport, session and ownership problems). */
@@ -223,7 +226,11 @@ export function createApi(opts: ApiOptions = {}) {
     bindFriend: (tokenId: TokenIdStr) => call("POST /api/session/friend", { tokenId }),
     /** Drops the server binding (served by apps/server; not in `ApiEndpoints` yet). */
     unbindFriend: () => send<OkRes>("DELETE", "/api/session/friend"),
-    me: () => call("GET /api/me", undefined),
+    me: async (): Promise<MeRes> => {
+      const me = await call("GET /api/me", undefined);
+      opts.onMe?.(me);
+      return me;
+    },
     appearance: (id: TokenIdStr) => call("GET /api/friends/:id/appearance", undefined, { id }),
     publicFriend: (id: TokenIdStr) => call("GET /api/friends/:id/public", undefined, { id }),
     submitRun: (run: RunSubmitReq) => call("POST /api/runs", run),

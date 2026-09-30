@@ -28,6 +28,8 @@ export interface MetaBook {
   applyHome(home: HomeView): void;
   /** Applies a bought plot. */
   applyPlot(res: PlotRes): void;
+  /** Applies a Bits balance read elsewhere (`GET /api/me`) for `tokenId`'s account. */
+  applyBits(tokenId: string, bits: number): void;
   /** Stops following the identity. */
   dispose(): void;
 }
@@ -90,6 +92,9 @@ export function createMetaBook(api: Pick<Api, "metaMe">, identity: IdentityContr
     },
     applyHome(home) {
       patch((me) => ({ ...me, home }));
+    },
+    applyBits(tokenId, bits) {
+      if (store.get().tokenId === tokenId) patch((me) => ({ ...me, bits }));
     },
     applyPlot(res) {
       patch((me) => ({ ...me, bits: res.bits, home: { ...me.home, plots: res.plots, terraces: res.terraces } }));

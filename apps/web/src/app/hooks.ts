@@ -56,6 +56,11 @@ export function useMeta(): MetaState {
   return useStore(useServices().meta.store);
 }
 
+/** False when the server switched guest play off (`GET /api/me` → `guestMode`); re-renders on change. */
+export function useGuestMode(): boolean {
+  return useStore(useServices().flags).guestMode;
+}
+
 /** A Bits balance and where it lives: the server ledger for owners, this device for guests. */
 export interface BitsBalance {
   /** Null while the owner's balance is loading (or failed to load with nothing cached). */

@@ -142,4 +142,18 @@ describe("api client", () => {
     const bare = createApi({ fetch: mockFetch(() => json({ error: "quote_expired" }, 409)).fetch });
     expect(errorMessage(await bare.marketBuy(1, 1).catch((e: unknown) => e))).toMatch(/price changed/);
   });
+
+  it("reports every /api/me answer to onMe (server flags, Bits)", async () => {
+    const onMe = vi.fn();
+    const me = {
+      identity: { kind: "anon" },
+      friend: null,
+      balanceMicro: null,
+      unread: 0,
+      economy: "sim",
+      guestMode: false,
+    };
+    await createApi({ fetch: mockFetch(() => json(me)).fetch, onMe }).me();
+    expect(onMe).toHaveBeenCalledWith(me);
+  });
 });

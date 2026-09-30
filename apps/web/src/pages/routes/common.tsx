@@ -4,7 +4,7 @@
  */
 import { type FriendView, isTokenIdStr, type TokenIdStr } from "@pl/shared";
 import type { ReactNode } from "react";
-import { useIdentity, useRemote, useServices } from "../../app/hooks.js";
+import { useGuestMode, useIdentity, useRemote, useServices } from "../../app/hooks.js";
 import { Card, EmptyState, LinkButton, type Remote } from "../../ui/index.js";
 
 /** A Friend's view: the player's own live identity view when it is theirs, else appearance + public from the API. */
@@ -44,6 +44,7 @@ export function useOwnerToken(): TokenIdStr | null {
 /** Shown instead of an owner-only page to guests: why, and the way in. */
 export function OwnerGate({ title, children }: { title: string; children: ReactNode }) {
   const id = useIdentity();
+  const guestMode = useGuestMode();
   return (
     <div className="pl-page">
       <header className="pl-page-head">
@@ -58,7 +59,7 @@ export function OwnerGate({ title, children }: { title: string; children: ReactN
               <LinkButton to="/connect" variant="now">
                 use my friend
               </LinkButton>
-              {id.mode === "none" && <LinkButton to="/play">play on loan</LinkButton>}
+              {id.mode === "none" && guestMode && <LinkButton to="/play">play on loan</LinkButton>}
             </div>
           }
         >
