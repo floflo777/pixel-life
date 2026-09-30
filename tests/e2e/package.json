@@ -1,0 +1,23 @@
+{
+  "name": "@pl/e2e",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Playwright end-to-end suite: injected EIP-1193/EIP-6963 test wallet + mock Robinhood RPC.",
+  "type": "module",
+  "exports": {
+    "./fixtures": "./fixtures/index.ts"
+  },
+  "scripts": {
+    "e2e": "playwright test",
+    "e2e:install": "playwright install chromium webkit",
+    "e2e:report": "playwright show-report",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@pl/mock-rpc": "*",
+    "@playwright/test": "1.63.0",
+    "@rarefriends/friendsdk": "file:../../vendor/rarefriends-friendsdk-0.1.4.tgz",
+    "viem": "2.56.3"
+  }
+}
