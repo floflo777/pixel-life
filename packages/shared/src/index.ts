@@ -8,3 +8,4 @@ export * from "./seedpack.js";
 export * from "./sim-types.js";
 export * from "./protocol.js";
 export { assertNever, fnv1a32, mulberry32 } from "./util.js";
+export * from "./meta.js";
