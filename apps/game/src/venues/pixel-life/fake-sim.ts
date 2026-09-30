@@ -133,6 +133,8 @@ class FakeSim implements Sim {
   private ringState = 0;
   private ringTicks = 0;
   private invulnUntil = 0;
+  /** Fake-only fairness: a short bite grace so a swarm can't strip a standing Friend in seconds. */
+  private graceUntil = 0;
   private steerOn = false;
   private steerDir = 0;
   private debris: Debris[] = [];
@@ -213,6 +215,11 @@ class FakeSim implements Sim {
     for (let i = 0; i < 256; i++) if (this.pixels[i] === PX.body) n++;
     return n;
   }
+  private stitchedCount(): number {
+    let n = 0;
+    for (let i = 0; i < 256; i++) if (this.pixels[i] === PX.safety) n++;
+    return n;
+  }
   private mass(): number {
     return Math.max(1, this.present());
   }
@@ -251,7 +258,7 @@ class FakeSim implements Sim {
 
   /** Knocks `k` pixels off the Friend, from an attacker at (ax, az). */
   private bite(k: number, ax: number, az: number, attacker: number): number {
-    if (this.tick < this.invulnUntil || this.ringState !== 0) return 0;
+    if (this.tick < this.invulnUntil || this.tick < this.graceUntil || this.ringState !== 0) return 0;
     const dx = this.body.x - ax;
     const dz = this.body.z - az;
     const len = Math.hypot(dx, dz) || 1;
@@ -278,6 +285,7 @@ class FakeSim implements Sim {
       this.emit("pixelOff", pid, attacker, d.x, d.z);
     }
     if (picks.length) {
+      this.graceUntil = this.tick + sec(1.2);
       this.emit("bite", attacker, picks.length, this.body.x, this.body.z);
       if (this.chain !== 10) {
         this.chain = 10;
@@ -355,7 +363,8 @@ class FakeSim implements Sim {
     this.stepCreatures();
     this.stepDebris();
     this.tick++;
-    const crumbled = this.present() <= this.n0 / 2;
+    // Safety-stitched and loose pixels still count: only real scars can crumble a Friend (the fake is forgiving).
+    const crumbled = this.present() + this.debris.length + this.stitchedCount() <= this.n0 / 2;
     if (this.tick >= RUN_TICKS || crumbled) this.finish(crumbled);
   }
 
