@@ -28,6 +28,31 @@ export interface PointerInput {
   dispose(): void;
 }
 
+/**
+ * Focusable controls that own their keys: Enter/Space activate them, arrows move inside them, typing edits them. The
+ * stage never takes a key from one of these (#26).
+ */
+export const INTERACTIVE_SELECTOR =
+  'button,a,input,select,textarea,summary,[contenteditable]:not([contenteditable="false"]),[role=button],[role=link],[role=checkbox],[role=switch],[role=menuitem],[role=tab],[role=slider],[role=textbox]';
+
+function isElement(t: unknown): t is Element {
+  return typeof t === "object" && t !== null && typeof (t as Partial<Element>).closest === "function";
+}
+
+/**
+ * Whether a key event on `target` belongs to the stage in `container`. Yes when nothing specific has focus (window,
+ * document, `<body>`, `<html>`) or the target is a non-interactive element inside the stage container; no when it is
+ * (inside) an interactive element ({@link INTERACTIVE_SELECTOR}) or any other element outside the container, so page
+ * buttons, links and fields keep their default keyboard behaviour.
+ */
+export function isStageKeyTarget(target: EventTarget | null, container: Element): boolean {
+  if (!isElement(target)) return true;
+  const doc = target.ownerDocument;
+  if (target === doc.body || target === doc.documentElement) return true;
+  if (target.closest(INTERACTIVE_SELECTOR)) return false;
+  return container.contains(target);
+}
+
 function kindOf(t: string): PointerKind {
   return t === "touch" || t === "pen" ? t : "mouse";
 }
@@ -35,12 +60,15 @@ function kindOf(t: string): PointerKind {
 /**
  * Binds a GestureTracker and KeyAxes to a canvas. Uses Pointer Events (touch, pen, mouse) with
  * pointer capture, and falls back to Touch Events on engines without PointerEvent. Keyboard is
- * listened for on the window, but only while the canvas's document has focus.
+ * listened for on the window, but only while the canvas's document has focus, and a key press is ignored entirely
+ * (no stage event, no `preventDefault`) unless both its target and the focused element pass {@link isStageKeyTarget}
+ * for `container` (default: the canvas's parent, which also holds the venue HUD).
  */
 export function bindPointerInput(
   canvas: HTMLCanvasElement,
   cfg: GestureConfig = DEFAULT_GESTURES,
   win: Window = window,
+  container: Element = canvas.parentElement ?? canvas,
 ): PointerInput {
   const tracker = new GestureTracker(cfg);
   const keys = new KeyAxes();
@@ -136,7 +164,7 @@ export function bindPointerInput(
   }
 
   listen(win, "keydown", (e) => {
-    if (e.target instanceof HTMLElement && e.target.closest("input,textarea,select,[contenteditable]")) return;
+    if (!isStageKeyTarget(e.target, container) || !isStageKeyTarget(win.document.activeElement, container)) return;
     if (isGameKey(e.code)) e.preventDefault();
     if (!keys.set(e.code, true)) return;
     emit([{ type: "key", code: e.code, down: true, action: keyAction(e.code) }]);
