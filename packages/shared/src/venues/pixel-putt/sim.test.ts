@@ -1,5 +1,3 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { runSummarySchema } from "../../protocol.js";
 import type { SimInput } from "../../sim-types.js";
@@ -8,6 +6,11 @@ import { chooseShot } from "./bot.js";
 import { cellIndex, cellKey, generateCourse, TEMPLATE_COUNT, templateSpec, buildHole } from "./course.js";
 import { createPuttSim, puttScore, replayPutt, type PuttEvent, type PuttSim } from "./sim.js";
 import { PUTT, PUTT_SCORE_BASE } from "./tuning.js";
+import botSrc from "./bot.ts?raw";
+import courseSrc from "./course.ts?raw";
+import indexSrc from "./index.ts?raw";
+import simSrc from "./sim.ts?raw";
+import tuningSrc from "./tuning.ts?raw";
 
 /** Plays a whole round with the search bot; returns the input log and every event. */
 function botRound(seed: number): { sim: PuttSim; inputs: SimInput[]; events: PuttEvent[] } {
@@ -264,15 +267,18 @@ describe("pixel putt sim", () => {
 
 describe("pixel putt determinism rules", () => {
   it("uses no engine-dependent maths or wall clock in its sources (same rules as packages/shared/src/sim)", () => {
-    const dir = fileURLToPath(new URL(".", import.meta.url));
     const banned =
       /Math\.(random|sin|cos|tan|asin|acos|atan|atan2|pow|exp|log|log2|log10|cbrt|hypot|sinh|cosh|tanh|expm1|log1p)\b|\bDate\b|\bperformance\b|\*\*/;
-    const files = readdirSync(dir).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
-    expect(files.length).toBeGreaterThan(3);
-    for (const f of files) {
-      const src = readFileSync(dir + f, "utf8")
-        .replace(/\/\*[\s\S]*?\*\//g, "")
-        .replace(/\/\/.*$/gm, "");
+    const files: Record<string, string> = {
+      "bot.ts": botSrc,
+      "course.ts": courseSrc,
+      "index.ts": indexSrc,
+      "sim.ts": simSrc,
+      "tuning.ts": tuningSrc,
+    };
+    for (const [f, text] of Object.entries(files)) {
+      expect(text.length, f).toBeGreaterThan(100);
+      const src = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
       expect(banned.exec(src)?.[0], f).toBeUndefined();
     }
   });
