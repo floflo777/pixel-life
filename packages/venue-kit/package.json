@@ -1,0 +1,17 @@
+{
+  "name": "@pl/venue-kit",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Venue module contract for the Pixel Life hub, plus a test harness for native venues.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@pl/shared": "*"
+  },
+  "devDependencies": {}
+}

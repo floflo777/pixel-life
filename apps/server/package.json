@@ -1,0 +1,26 @@
+{
+  "name": "@pl/server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Game server on ailog: Fastify API, WebSocket hub rooms, PostgreSQL, run replay verification.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@pl/shared": "*",
+    "@rarefriends/friendsdk": "file:../../vendor/rarefriends-friendsdk-0.1.4.tgz",
+    "fastify": "^5.12.5",
+    "ws": "^8.22.0",
+    "kysely": "^0.29.6",
+    "pg": "^8.23.1",
+    "viem": "2.56.3"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2",
+    "@types/pg": "^8.23.1"
+  }
+}

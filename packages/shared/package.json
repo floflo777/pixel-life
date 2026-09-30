@@ -1,0 +1,15 @@
+{
+  "name": "@pl/shared",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Shared contracts: ids, Friend bitmaps, scars/regrowth, economy quotes, wire protocol, deterministic sim.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

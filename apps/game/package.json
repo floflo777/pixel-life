@@ -1,0 +1,21 @@
+{
+  "name": "@pl/game",
+  "private": true,
+  "version": "0.1.0",
+  "description": "three.js renderer: shared stage, voxel Friend, hub scene and the Pixel Life venue.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@pl/shared": "*",
+    "@pl/venue-kit": "*",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.186.0"
+  }
+}

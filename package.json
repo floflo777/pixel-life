@@ -1,0 +1,38 @@
+{
+  "name": "pixel-life",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Pixel Life: a Rare Friends social world where your Friend's pixels are its life.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "tools/*",
+    "workers/*"
+  ],
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "npm run build --workspaces --if-present",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.0",
+    "@types/node": "^22.19.0",
+    "eslint": "^10.11.0",
+    "fast-check": "^4.10.2",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9",
+    "tsx": "^4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.3"
+  }
+}

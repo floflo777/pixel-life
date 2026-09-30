@@ -1,0 +1,28 @@
+{
+  "name": "@pl/web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Web shell: landing, identity (FriendSDK), hub HUD, pages, venue manager.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@pl/shared": "*",
+    "@pl/venue-kit": "*",
+    "@pl/game": "*",
+    "@rarefriends/friendsdk": "file:../../vendor/rarefriends-friendsdk-0.1.4.tgz",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "viem": "2.56.3"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "vite": "^8.3.1"
+  }
+}

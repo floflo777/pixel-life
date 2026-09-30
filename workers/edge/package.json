@@ -1,0 +1,18 @@
+{
+  "name": "@pl/edge",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cloudflare edge Worker: serves the static client and proxies /api and /ws to the origin.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "wrangler": "^4.145.0",
+    "@cloudflare/workers-types": "^5.20260930.2"
+  }
+}
