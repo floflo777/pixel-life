@@ -1,0 +1,719 @@
+/*
+ * Pixel Life UI kit (art bible §6–7): paper cards, 2 px ink borders, hard offset shadows, radius 0, Silkscreen display
+ * type, lowercase mono labels. Lime (--pl-signal) is reserved for the single "act now" control on a screen.
+ * UI motion is stepped (steps(), never eased) and disappears under reduced motion.
+ * Every class is prefixed `pl-` so the kit can live beside the shell's own styles.
+ */
+
+:root {
+  --pl-ink: #111111;
+  --pl-paper: #eeeeee;
+  --pl-halo: #f4f2ea;
+  --pl-signal: #ccff00;
+  --pl-meadow: #b9d984;
+  --pl-pond: #7db4db;
+  --pl-sun: #f2ce68;
+  --pl-gold: #e8b530;
+  --pl-gold-spec: #fff8e4;
+  --pl-coral: #ed927e;
+  --pl-coral-dark: #d67a68;
+  --pl-lilac: #b3a0d8;
+  --pl-tile: #e6e1d2;
+  --pl-muted: #5a5a5a;
+  --pl-grid-dot: #b0b0b0;
+
+  /* Semantic roles (flip in dark mode). */
+  --pl-surface: var(--pl-paper);
+  --pl-on-surface: var(--pl-ink);
+  --pl-line: var(--pl-ink);
+  --pl-shadow: var(--pl-ink);
+  --pl-sub: var(--pl-muted);
+  --pl-page: #e4e2dc;
+
+  --pl-font-display: "Silkscreen", "Press Start 2P", ui-monospace, monospace;
+  --pl-font-body: "Archivo Variable", "Archivo", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --pl-font-mono: "Sometype Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --pl-border: 2px solid var(--pl-line);
+  --pl-gap: 8px;
+}
+
+/* Dark = the site's "invert" (art bible §1.2): cards flip to ink with paper text and paper shadows. Lime unchanged. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pl-surface: var(--pl-ink);
+    --pl-on-surface: var(--pl-paper);
+    --pl-line: var(--pl-paper);
+    --pl-shadow: var(--pl-paper);
+    --pl-sub: #b8b8b8;
+    --pl-page: #1a1a1a;
+  }
+}
+:root[data-theme="dark"] {
+  --pl-surface: var(--pl-ink);
+  --pl-on-surface: var(--pl-paper);
+  --pl-line: var(--pl-paper);
+  --pl-shadow: var(--pl-paper);
+  --pl-sub: #b8b8b8;
+  --pl-page: #1a1a1a;
+}
+
+.pl-root {
+  font-family: var(--pl-font-body);
+  color: var(--pl-on-surface);
+  font-size: 15px;
+  line-height: 1.45;
+}
+.pl-root *,
+.pl-root *::before,
+.pl-root *::after {
+  box-sizing: border-box;
+}
+
+/* ── Type ─────────────────────────────────────────────────────────────────────────────────────── */
+.pl-display {
+  font-family: var(--pl-font-display);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  line-height: 1.1;
+  margin: 0;
+}
+.pl-h1 {
+  font-size: 26px;
+}
+.pl-h2 {
+  font-size: 14px;
+}
+.pl-h3 {
+  font-size: 12px;
+}
+.pl-label {
+  font-family: var(--pl-font-mono);
+  font-size: 11px;
+  text-transform: lowercase;
+  color: var(--pl-sub);
+  letter-spacing: 0.02em;
+}
+.pl-mono {
+  font-family: var(--pl-font-mono);
+}
+.pl-sub {
+  color: var(--pl-sub);
+}
+.pl-num {
+  font-family: var(--pl-font-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pl-sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── Layout ───────────────────────────────────────────────────────────────────────────────────── */
+.pl-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 16px;
+  display: grid;
+  gap: 16px;
+}
+.pl-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pl-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.pl-stack {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+.pl-grid-2 {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
+.pl-cards {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.pl-construction {
+  background-color: var(--pl-page);
+  background-image: radial-gradient(var(--pl-grid-dot) 1px, transparent 1.5px);
+  background-size: 16px 16px;
+}
+
+/* ── Card ─────────────────────────────────────────────────────────────────────────────────────── */
+.pl-card {
+  background: var(--pl-surface);
+  color: var(--pl-on-surface);
+  border: var(--pl-border);
+  box-shadow: 4px 4px 0 var(--pl-shadow);
+  border-radius: 0;
+  padding: 16px;
+  min-width: 0;
+}
+.pl-card--hero {
+  box-shadow: 6px 6px 0 var(--pl-shadow);
+}
+.pl-card--flat {
+  box-shadow: none;
+}
+.pl-card--ink {
+  background: var(--pl-on-surface);
+  color: var(--pl-surface);
+  border-color: var(--pl-on-surface);
+  box-shadow:
+    4px 4px 0 var(--pl-surface),
+    4px 4px 0 2px var(--pl-line);
+}
+.pl-card--ink .pl-label,
+.pl-card--ink .pl-sub {
+  color: inherit;
+  opacity: 0.8;
+}
+.pl-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────────────────────────── */
+.pl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 14px;
+  font-family: var(--pl-font-display);
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  border: var(--pl-border);
+  border-radius: 0;
+  background: var(--pl-surface);
+  color: var(--pl-on-surface);
+  box-shadow: 2px 2px 0 var(--pl-shadow);
+  cursor: pointer;
+  transition: none;
+}
+.pl-btn:active:not(:disabled),
+.pl-btn[aria-pressed="true"] {
+  box-shadow: 0 0 0 var(--pl-shadow);
+  transform: translate(2px, 2px);
+}
+.pl-btn:disabled,
+.pl-btn[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+  box-shadow: none;
+}
+.pl-btn--now {
+  background: var(--pl-signal);
+  color: var(--pl-ink);
+  border-color: var(--pl-ink);
+  box-shadow: 2px 2px 0 var(--pl-ink);
+}
+.pl-btn--ink {
+  background: var(--pl-on-surface);
+  color: var(--pl-surface);
+}
+.pl-btn--quiet {
+  border-color: transparent;
+  box-shadow: none;
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.pl-btn--danger {
+  background: var(--pl-coral);
+  color: var(--pl-ink);
+  border-color: var(--pl-ink);
+}
+.pl-btn--small {
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 11px;
+}
+.pl-btn--big {
+  min-height: 56px;
+  padding: 12px 24px;
+  font-size: 16px;
+}
+.pl-btn--block {
+  width: 100%;
+}
+
+/* Focus is never lime (lime = act now); a thick ink/paper double ring works on every surface. */
+.pl-root :focus-visible {
+  outline: 3px solid var(--pl-line);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--pl-surface);
+}
+
+/* ── Pills and badges ─────────────────────────────────────────────────────────────────────────── */
+.pl-pill,
+.pl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: var(--pl-border);
+  border-radius: 0;
+  font-family: var(--pl-font-mono);
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 6px;
+  text-transform: lowercase;
+  white-space: nowrap;
+  box-shadow: 2px 2px 0 var(--pl-shadow);
+  background: var(--pl-surface);
+  color: var(--pl-on-surface);
+}
+.pl-badge {
+  font-family: var(--pl-font-display);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 10px;
+  box-shadow: none;
+}
+.pl-tone-ink {
+  background: var(--pl-on-surface);
+  color: var(--pl-surface);
+}
+.pl-tone-now {
+  background: var(--pl-signal);
+  color: var(--pl-ink);
+  border-color: var(--pl-ink);
+}
+.pl-tone-coral {
+  background: var(--pl-coral);
+  color: var(--pl-ink);
+  border-color: var(--pl-ink);
+}
+.pl-tone-gold {
+  background: var(--pl-gold);
+  color: var(--pl-ink);
+  border-color: var(--pl-ink);
+}
+.pl-tone-sun {
+  background: var(--pl-sun);
+  color: var(--pl-ink);
+  border-color: var(--pl-ink);
+}
+.pl-tone-lilac {
+  background: var(--pl-lilac);
+  color: var(--pl-ink);
+  border-color: var(--pl-ink);
+}
+.pl-tone-pond {
+  background: var(--pl-pond);
+  color: var(--pl-ink);
+  border-color: var(--pl-ink);
+}
+/* SIMULATED is a diagonal ink ribbon, never lime (art bible §11.10). */
+.pl-badge--sim {
+  background: repeating-linear-gradient(-45deg, var(--pl-ink) 0 6px, #2b2b2b 6px 12px);
+  color: var(--pl-paper);
+  border-color: var(--pl-ink);
+}
+.pl-badge--live {
+  background: var(--pl-paper);
+  color: var(--pl-ink);
+  border-color: var(--pl-ink);
+}
+
+/* ── Modal / sheet ────────────────────────────────────────────────────────────────────────────── */
+.pl-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(17 17 17 / 45%);
+  animation: pl-appear 80ms steps(2, end);
+}
+.pl-overlay--sheet {
+  place-items: end center;
+  padding: 0;
+}
+.pl-modal {
+  width: min(100%, 480px);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  box-shadow: 6px 6px 0 var(--pl-shadow);
+}
+.pl-overlay--sheet .pl-modal {
+  width: min(100%, 640px);
+  max-height: 85dvh;
+  box-shadow: 0 -4px 0 var(--pl-shadow);
+}
+.pl-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+@keyframes pl-appear {
+  from {
+    opacity: 0.5;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── Tabs ─────────────────────────────────────────────────────────────────────────────────────── */
+.pl-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border-bottom: var(--pl-border);
+}
+.pl-tab {
+  min-height: 44px;
+  padding: 8px 14px;
+  font-family: var(--pl-font-display);
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  border: var(--pl-border);
+  border-bottom: 0;
+  margin-right: -2px;
+  background: var(--pl-page);
+  color: var(--pl-on-surface);
+  cursor: pointer;
+}
+.pl-tab[aria-selected="true"] {
+  background: var(--pl-on-surface);
+  color: var(--pl-surface);
+}
+
+/* ── Progress blocks ──────────────────────────────────────────────────────────────────────────── */
+.pl-blocks {
+  display: flex;
+  gap: 2px;
+}
+.pl-block {
+  flex: 1 1 0;
+  min-width: 4px;
+  height: 12px;
+  border: 2px solid var(--pl-line);
+  background: var(--pl-surface);
+}
+.pl-block--on {
+  background: var(--pl-on-surface);
+}
+.pl-blocks--now .pl-block--on {
+  background: var(--pl-signal);
+  border-color: var(--pl-ink);
+}
+.pl-blocks--coral .pl-block--on {
+  background: var(--pl-coral);
+}
+.pl-blocks--gold .pl-block--on {
+  background: var(--pl-gold);
+}
+
+/* ── Split bar (where every RF goes) ─────────────────────────────────────────────────────────── */
+.pl-split {
+  display: grid;
+  gap: 8px;
+}
+.pl-split-bar {
+  display: flex;
+  height: 20px;
+  border: var(--pl-border);
+  box-shadow: 2px 2px 0 var(--pl-shadow);
+}
+.pl-split-seg {
+  height: 100%;
+  min-width: 2px;
+}
+.pl-split-seg + .pl-split-seg {
+  border-left: 2px solid var(--pl-ink);
+}
+.pl-split-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.pl-split-legend li > :last-child {
+  white-space: nowrap;
+}
+.pl-split-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+.pl-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--pl-ink);
+  flex: none;
+}
+.pl-seg-burn {
+  background: var(--pl-ink);
+}
+.pl-seg-stream {
+  background: var(--pl-pond);
+}
+.pl-seg-friend {
+  background: var(--pl-coral);
+}
+.pl-seg-creator {
+  background: var(--pl-lilac);
+}
+.pl-seg-seller {
+  background: var(--pl-meadow);
+}
+.pl-seg-reward {
+  background: var(--pl-sun);
+}
+.pl-seg-gold {
+  background: var(--pl-gold);
+}
+
+/* ── Toasts ───────────────────────────────────────────────────────────────────────────────────── */
+.pl-toasts {
+  position: fixed;
+  z-index: 1100;
+  left: 50%;
+  bottom: 88px;
+  transform: translateX(-50%);
+  width: min(calc(100% - 32px), 420px);
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+.pl-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px 8px 12px;
+  animation: pl-appear 80ms steps(2, end);
+}
+.pl-toast--good {
+  border-left: 8px solid var(--pl-meadow);
+}
+.pl-toast--bad {
+  border-left: 8px solid var(--pl-coral);
+}
+
+/* ── States ───────────────────────────────────────────────────────────────────────────────────── */
+.pl-state {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 24px 16px;
+}
+.pl-state-glyph {
+  font-family: var(--pl-font-display);
+  font-size: 22px;
+}
+.pl-state--error {
+  border-left: 8px solid var(--pl-coral);
+}
+.pl-skeleton {
+  display: block;
+  background: var(--pl-tile);
+  border: 2px solid var(--pl-tile);
+  animation: pl-shimmer 1.2s steps(4, end) infinite;
+}
+@keyframes pl-shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* ── Friend portrait ──────────────────────────────────────────────────────────────────────────── */
+.pl-portrait {
+  position: relative;
+  display: inline-block;
+  vertical-align: top;
+  line-height: 0;
+  image-rendering: pixelated;
+}
+.pl-portrait canvas {
+  image-rendering: pixelated;
+  display: block;
+}
+.pl-portrait-frame {
+  background: var(--pl-paper);
+  border: var(--pl-border);
+  padding: 8px;
+  display: inline-block;
+  width: max-content;
+  max-width: 100%;
+  justify-self: start;
+  align-self: start;
+}
+.pl-portrait-cell {
+  position: absolute;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.pl-portrait-cell:focus-visible {
+  outline: 2px solid var(--pl-ink);
+  outline-offset: 0;
+  box-shadow: 0 0 0 4px var(--pl-signal);
+}
+.pl-portrait-cell:disabled {
+  cursor: not-allowed;
+}
+
+/* ── Tables ───────────────────────────────────────────────────────────────────────────────────── */
+.pl-table-wrap {
+  overflow-x: auto;
+}
+.pl-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.pl-table th {
+  text-align: left;
+  font-family: var(--pl-font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: lowercase;
+  color: var(--pl-sub);
+  border-bottom: var(--pl-border);
+  padding: 6px 8px;
+}
+.pl-table td {
+  padding: 6px 8px;
+  border-bottom: 1px dashed var(--pl-grid-dot);
+  vertical-align: middle;
+}
+.pl-table .pl-num-cell {
+  text-align: right;
+  font-family: var(--pl-font-display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pl-table tr.pl-row-me td {
+  background: var(--pl-on-surface);
+  color: var(--pl-surface);
+}
+
+/* ── Misc ─────────────────────────────────────────────────────────────────────────────────────── */
+.pl-dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 12px;
+  margin: 0;
+}
+.pl-dl dt {
+  font-family: var(--pl-font-mono);
+  font-size: 11px;
+  text-transform: lowercase;
+  color: var(--pl-sub);
+  align-self: center;
+}
+.pl-dl dd {
+  margin: 0;
+}
+.pl-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.pl-divider {
+  border: 0;
+  border-top: 2px dashed var(--pl-line);
+  margin: 12px 0;
+}
+.pl-inline-error {
+  color: var(--pl-on-surface);
+  border-left: 6px solid var(--pl-coral);
+  padding: 4px 8px;
+  margin: 0;
+}
+.pl-kbd {
+  font-family: var(--pl-font-mono);
+  font-size: 12px;
+  border: 2px solid var(--pl-line);
+  box-shadow: 2px 2px 0 var(--pl-shadow);
+  padding: 1px 5px;
+  background: var(--pl-surface);
+}
+.pl-halo-anim {
+  animation: pl-halo 1s steps(2, end) infinite;
+}
+@keyframes pl-halo {
+  50% {
+    filter: brightness(1.12);
+  }
+}
+
+@media (max-width: 480px) {
+  .pl-page {
+    padding: 12px;
+  }
+  .pl-h1 {
+    font-size: 22px;
+  }
+  .pl-card {
+    padding: 12px;
+  }
+}
+
+/* Reduced motion: nothing steps, nothing shimmers (the pressed-state offset is a state, not motion, so it stays). */
+@media (prefers-reduced-motion: reduce) {
+  .pl-overlay,
+  .pl-toast,
+  .pl-skeleton,
+  .pl-halo-anim {
+    animation: none !important;
+  }
+}
+:root[data-reduced-motion="true"] .pl-overlay,
+:root[data-reduced-motion="true"] .pl-toast,
+:root[data-reduced-motion="true"] .pl-skeleton,
+:root[data-reduced-motion="true"] .pl-halo-anim {
+  animation: none !important;
+}
