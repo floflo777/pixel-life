@@ -196,6 +196,7 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -844,4 +845,12 @@
   gap: 8px;
   overflow-x: auto;
   padding-bottom: 4px;
+}
+
+/* Grid and flex children may shrink below their content, so wide tables scroll inside their wrap at 360 px. */
+.pl-page > *,
+.pl-grid-2 > *,
+.pl-cards > *,
+.pl-card {
+  min-width: 0;
 }
