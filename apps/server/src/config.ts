@@ -34,6 +34,14 @@ export interface ServerConfig {
   readonly economyMode: "sim" | "live";
   /** Room slugs the WebSocket layer accepts. */
   readonly rooms: readonly string[];
+  /** Live mode only: `PixelLifeSink` address whose `Regrew`/`Mended` events credit pixels (contracts/README.md). */
+  readonly pixelLifeSink: Address | null;
+  /** Live mode only: confirmations a sink payment needs before it is credited. */
+  readonly liveConfirmations: number;
+  /** Seed Pack house stake the simulated ledger starts with (micro-RF; tokenomics §3: 10,000 RF). */
+  readonly seedpackStakeMicro: number;
+  /** Replay-verification worker threads (0 disables verification: runs stay `pending`). */
+  readonly replayWorkers: number;
 }
 
 /** One problem found while validating the environment. */
@@ -134,6 +142,14 @@ export function loadConfig(env: Env): ServerConfig {
     .filter(Boolean);
   for (const room of rooms) if (!ROOM_SLUG.test(room)) fail("ROOMS", `${room} is not a valid slug`);
 
+  const economyMode = oneOf("ECONOMY_MODE", ["sim", "live"] as const, "sim");
+  const sinkRaw = env["PIXEL_LIFE_SINK"]?.trim() ?? "";
+  let pixelLifeSink: Address | null = null;
+  if (sinkRaw) {
+    if (isAddress(sinkRaw, { strict: false })) pixelLifeSink = sinkRaw.toLowerCase() as Address;
+    else fail("PIXEL_LIFE_SINK", "must be an address");
+  } else if (economyMode === "live") fail("PIXEL_LIFE_SINK", "is required when ECONOMY_MODE=live");
+
   const config: ServerConfig = {
     env: nodeEnv,
     host: str("HOST", "127.0.0.1"),
@@ -153,8 +169,12 @@ export function loadConfig(env: Env): ServerConfig {
     rpcUrl,
     chainId: int("CHAIN_ID", ROBINHOOD_CHAIN_ID, 1, 2 ** 31 - 1),
     generationsAddress: generationsAddress as Address,
-    economyMode: oneOf("ECONOMY_MODE", ["sim", "live"] as const, "sim"),
+    economyMode,
     rooms,
+    pixelLifeSink,
+    liveConfirmations: int("LIVE_CONFIRMATIONS", 3, 0, 1000),
+    seedpackStakeMicro: int("SEEDPACK_STAKE_RF", 10_000, 0, 1_000_000_000) * 1_000_000,
+    replayWorkers: int("REPLAY_WORKERS", 2, 0, 32),
   };
   if (production && !config.cookieSecure) fail("COOKIE_SECURE", "must be true in production");
   if (issues.length > 0) throw new ConfigError(issues);

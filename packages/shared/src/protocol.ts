@@ -190,6 +190,10 @@ export type ApiErrorCode =
   | "bad_token"
   | "bad_mask"
   | "self_mend"
+  /** The request needs a signed-in owner session (401). */
+  | "no_session"
+  /** A dependency (chain RPC, replay pool, feature) is temporarily unavailable: retry later (503). */
+  | "unavailable"
   | "internal";
 
 /** `POST /api/guest` → guest cookie issued. */
@@ -235,6 +239,8 @@ export interface MeRes {
   balanceMicro: number | null;
   unread: number;
   economy: EconomyMode;
+  /** Account Bits balance (owners only; guests keep Bits locally). Additive. */
+  bits?: number;
 }
 
 /** `GET /api/friends/:id/appearance` (immutable). */
@@ -251,6 +257,8 @@ export interface RunSubmitReq {
   day?: string;
   inputs: string;
   claimed: RunSummary;
+  /** Sim arena (island) the run was played on; default `meadow`. Additive: needed to replay the run. */
+  arena?: string;
 }
 
 /** Replay verification state of a run (`runs.verified`: 0 / 1 / -1). */
@@ -266,6 +274,8 @@ export interface RunAck {
   applied: boolean;
   reason?: RunNotAppliedReason;
   scars: ScarState | null;
+  /** Bits credited for this run after the daily cap (owners only). Additive. */
+  bits?: number;
 }
 
 /** `GET /api/daily` → today's seed. `endsAt` is the next 00:00 UTC in ms. */
@@ -396,6 +406,8 @@ export interface ApiEndpoints {
   "POST /api/auth/verify": { req: VerifyReq; res: VerifyRes };
   "POST /api/auth/logout": { req: NoBody; res: OkRes };
   "POST /api/session/friend": { req: SessionFriendReq; res: FriendView };
+  /** Drops the session's bound Friend (the client re-picks after an account or Friend change). */
+  "DELETE /api/session/friend": { req: NoBody; res: OkRes };
   "GET /api/me": { req: NoBody; res: MeRes };
   "GET /api/friends/:id/appearance": { req: NoBody; res: AppearanceRes };
   "GET /api/friends/:id/public": { req: NoBody; res: PublicRes };
@@ -528,6 +540,7 @@ export const requestSchemas = {
       day: daySchema.exactOptional(),
       inputs: z.base64().max(MAX_INPUTS_B64),
       claimed: runSummarySchema,
+      arena: venueIdSchema.exactOptional(),
     })
     .refine((r) => r.kind !== "daily" || r.day !== undefined, { message: "daily runs need a day", path: ["day"] }),
   "GET /api/daily/:day/board": z.object({ board: z.enum(["owners", "visitors"]) }),

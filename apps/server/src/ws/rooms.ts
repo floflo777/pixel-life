@@ -21,11 +21,13 @@ export interface RoomConnection {
   readonly slug: string;
   readonly ip: string;
   readonly requestId: string;
+  /** Raw query string of the upgrade URL (`?shard=`, `?from=`, `?loan=`), without the leading `?`. */
+  readonly query: string;
 }
 
 /**
  * The realtime layer's contract (architecture §1b.1, in-process replacement for RoomDO/DirectoryDO).
- * T8 implements shards, presence, movement and buckets behind this interface; this task only ships a stub.
+ * `createHubRoomRegistry` (ws/hub-registry.ts) implements it on the @pl/realtime Hub; the stub below stays for tests.
  */
 export interface RoomRegistry {
   /** Whether `slug` names a joinable room (unknown slugs are refused with 404 before upgrading). */
@@ -46,8 +48,8 @@ export const CLOSE_CODES = Object.freeze({
 });
 
 /**
- * Placeholder registry until T8 lands: accepts sockets for the configured slugs, ignores their messages,
- * and keeps them open so the upgrade/auth path is exercisable end to end.
+ * Test registry: accepts sockets for the configured slugs, ignores their messages, and keeps them open so the
+ * upgrade/auth path is exercisable end to end without the hub.
  */
 export function createStubRoomRegistry(
   slugs: readonly string[],

@@ -70,7 +70,7 @@ export async function verifySiwe(ctx: AppContext, { message: rawMessage, signatu
   try {
     valid = await ctx.chain.verifyMessage({ address: signer, message: rawMessage, signature });
   } catch {
-    throw new HttpError(503, "internal", "Could not verify the signature right now. Try again.", {
+    throw new HttpError(503, "unavailable", "Could not verify the signature right now. Try again.", {
       reason: "rpc_error",
     });
   }

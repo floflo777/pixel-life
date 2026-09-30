@@ -6,6 +6,21 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      # Server tests (apps/server) create one throwaway database per test file on this cluster.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgres://postgres:ci@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,6 +33,29 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Browsers plus their system libraries (WebKit needs e.g. libavif16 on Ubuntu 24.04).
+      - run: npx playwright install --with-deps chromium webkit
+        working-directory: tests/e2e
+      - run: npm run e2e -w @pl/e2e
+        env:
+          CI: "true"
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            tests/e2e/playwright-report
+            tests/e2e/test-results
+          retention-days: 7
   contracts:
     runs-on: ubuntu-latest
     steps:

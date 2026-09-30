@@ -106,7 +106,7 @@ export function attachWebSocket(server: Server, ctx: AppContext, log: FastifyBas
     const url = new URL(request.url ?? "/", "http://origin.invalid");
     const match = ROOM_PATH.exec(url.pathname);
     try {
-      if (closing) throw new HttpError(503, "internal", "Server is shutting down.", { reason: "shutting_down" });
+      if (closing) throw new HttpError(503, "unavailable", "Server is shutting down.", { reason: "shutting_down" });
       if (!originKeyMatches(ctx.config, request.headers)) throw new HttpError(403, "forbidden", "Forbidden.");
       if (!match?.[1]) throw new HttpError(404, "not_found", "Unknown WebSocket path.");
       if (!originAllowed(ctx.config, request.headers.origin))
@@ -123,7 +123,7 @@ export function attachWebSocket(server: Server, ctx: AppContext, log: FastifyBas
         alive.add(ws);
         ws.on("pong", () => alive.add(ws));
         track(identity.key, ws);
-        const connection: RoomConnection = { socket: ws, identity, slug, ip, requestId };
+        const connection: RoomConnection = { socket: ws, identity, slug, ip, requestId, query: url.search.slice(1) };
         log.info({ requestId, slug, kind: identity.kind, key: identity.key }, "ws joined");
         try {
           ctx.rooms.join(connection);

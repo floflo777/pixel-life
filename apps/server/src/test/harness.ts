@@ -12,8 +12,10 @@ import { inject } from "vitest";
 import { buildApp, type AppDeps } from "../app.js";
 import type { ChainClient } from "../chain/eligibility.js";
 import { loadConfig, type ServerConfig } from "../config.js";
+import type { AppContext } from "../context.js";
 import { loadMigrations, migrate } from "../db/migrate.js";
 import { createDb, type Db } from "../db/pool.js";
+import { disabledVerifier } from "../runs/verifier.js";
 
 /** Test-only helpers: real Postgres database per file, @pl/mock-rpc chain, controllable clock, SIWE sign-in. */
 
@@ -96,6 +98,8 @@ export interface Harness {
   readonly db: Db;
   readonly rpc: MockRpcServer;
   readonly clock: TestClock;
+  /** The app's context (background work, hub, config). */
+  readonly ctx: AppContext;
   /** Headers every request through the Worker carries. */
   readonly edge: Record<string, string>;
   close(): Promise<void>;
@@ -104,7 +108,7 @@ export interface Harness {
 export interface HarnessOptions {
   readonly world?: WorldSpec;
   readonly env?: Record<string, string>;
-  readonly deps?: Omit<AppDeps, "db" | "now">;
+  readonly deps?: Omit<AppDeps, "db" | "now" | "onContext">;
   /** Wrap the real mock-chain client (e.g. to stub EIP-1271 verification). */
   readonly wrapChain?: (client: ChainClient) => ChainClient;
 }
@@ -116,19 +120,25 @@ export async function startHarness(options: HarnessOptions = {}): Promise<Harnes
   const clock = createClock();
   const config = testConfig(options.env);
   const base: ChainClient = createPublicClient({ transport: http(rpc.url, { retryCount: 0 }) });
+  let ctx: AppContext | undefined;
   const app = await buildApp(config, {
+    // Replay workers are opt-in per test (they spawn threads); everything else uses production defaults.
+    verifier: disabledVerifier,
     ...options.deps,
     db: database.db,
     chain: options.wrapChain ? options.wrapChain(base) : base,
     now: clock.now,
+    onContext: (c) => void (ctx = c),
   });
   await app.ready();
+  if (!ctx) throw new Error("buildApp did not report its context");
   return {
     app,
     config,
     db: database.db,
     rpc,
     clock,
+    ctx,
     edge: { "x-pl-origin-key": ORIGIN_KEY, origin: ORIGIN },
     async close() {
       await app.close();

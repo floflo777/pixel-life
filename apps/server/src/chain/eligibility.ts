@@ -17,7 +17,10 @@ import { HttpError } from "../http/errors.js";
  * The chain reads the server needs: the SDK eligibility reads plus signature verification.
  * A real viem PublicClient satisfies it; tests may point one at @pl/mock-rpc or stub it.
  */
-export type ChainClient = Pick<PublicClient, "readContract" | "getChainId" | "getBlockNumber" | "verifyMessage">;
+export type ChainClient = Pick<
+  PublicClient,
+  "readContract" | "getChainId" | "getBlockNumber" | "verifyMessage" | "getTransactionReceipt"
+>;
 
 /** Creates the production client: plain HTTP to `RPC_URL`, bounded timeout, one retry. */
 export function createChainClient(config: Pick<ServerConfig, "rpcUrl">): ChainClient {
@@ -69,7 +72,7 @@ export async function checkFriendEligibility(
     result = await readGenerationEligibility(client, tokenId, player, deployment);
   } catch (error) {
     if (isRevert(error)) return { ok: false, reason: "not_owner", blockNumber: null };
-    throw new HttpError(503, "internal", "Could not verify Friend ownership on chain. Try again.", RPC);
+    throw new HttpError(503, "unavailable", "Could not verify Friend ownership on chain. Try again.", RPC);
   }
   if (!result.ownedByPlayer) return { ok: false, reason: "not_owner", blockNumber: result.blockNumber };
   if (!result.hardwired) return { ok: false, reason: "not_hardwired", blockNumber: result.blockNumber };
@@ -83,10 +86,10 @@ export async function checkFriendEligibility(
       blockNumber: result.blockNumber,
     });
   } catch {
-    throw new HttpError(503, "internal", "Could not read the Friend wallet on chain. Try again.", RPC);
+    throw new HttpError(503, "unavailable", "Could not read the Friend wallet on chain. Try again.", RPC);
   }
   if (!isAddress(tba) || tba.toLowerCase() === zeroAddress) {
-    throw new HttpError(503, "internal", "Invalid canonical Friend wallet.", RPC);
+    throw new HttpError(503, "unavailable", "Invalid canonical Friend wallet.", RPC);
   }
   return {
     ok: true,
