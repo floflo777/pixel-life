@@ -4,7 +4,7 @@
  * and local-only scars (D-11).
  */
 import type { CueName } from "@pl/audio";
-import type { DailySeed, RunAck, RunSubmitReq } from "@pl/shared";
+import { popcount, type DailySeed, type RunAck, type RunSubmitReq } from "@pl/shared";
 import { createSignal, type ReadonlySignal, type VenueHost, type VenueIdentity, type VenueResult } from "@pl/venue-kit";
 import type { Services } from "../app/services.js";
 import { utcDay } from "../lib/format.js";
@@ -22,9 +22,21 @@ export function toBase64(bytes: Uint8Array): string {
 /** What the shell learns when a venue reports a run. */
 export interface ReportedRun {
   result: VenueResult;
+  /** The acknowledgement the venue also receives; `ack.bits` is the one Bits figure for this run (see {@link creditedAck}). */
   ack: RunAck;
   /** Server/verification problem to show on the results card, if any. */
   problem: string | null;
+  /** Stamps this run awarded (local stamp book). */
+  newStamps: readonly string[];
+}
+
+/**
+ * The ack both the venue's results card and the shell toast read, so they can never disagree (#32): owners get the
+ * Bits the server credited (0 when it credited nothing, e.g. offline); guests get the device tally's credit
+ * (`localBits`, D-11), since their server run earns nothing.
+ */
+export function creditedAck(ack: RunAck, mode: VenueIdentity["mode"], localBits: number): RunAck {
+  return { ...ack, bits: mode === "guest" ? localBits : (ack.bits ?? 0) };
 }
 
 /** Options of {@link createVenueHost}. */
@@ -106,7 +118,15 @@ export function createVenueHost(o: VenueHostOptions): VenueHost<GameStage> {
           problem = "Offline or server busy: this run won't leave scars or rank.";
         }
       }
-      o.onReported({ result, ack, problem });
+      // Stamps (and the guest's Bits) come from the local book; an owner's Bits are the server's alone.
+      const player = mode === "owner" ? o.identity.friend.appearance.tokenId : "guest";
+      const local = s.progress.recordRun(
+        player,
+        { score: result.claimed.score, lost: popcount(result.claimed.lostDelta) },
+        now,
+      );
+      ack = creditedAck(ack, mode, local.bits);
+      o.onReported({ result, ack, problem, newStamps: local.newStamps });
       return ack;
     },
     exit: (reason = "quit") => o.onExit(reason),

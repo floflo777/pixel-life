@@ -59,7 +59,7 @@ import {
   OneSwitchAim,
   SteerEncoder,
 } from "./input";
-import { buildResults, replayNote, scarNote, type ResultsModel } from "./results";
+import { bitsLabel, buildResults, replayNote, scarNote, type ResultsModel } from "./results";
 import { disposePlaceholderCreatures, RunScene, U, type CreatureFactory } from "./scene";
 import { drawSilhouette, renderShareCard } from "./share-card";
 import { KIND, PX, SHARED_SIM, type SimModule } from "./sim-module";
@@ -945,9 +945,10 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       drawSilhouette(ctx, 0, 0, 8, model.share.front, model.share.lost);
     }
     const dl = document.createElement("dl");
-    const stat = (k: string, v: string): void => {
-      dl.append(Object.assign(document.createElement("dt"), { textContent: k }));
-      dl.append(Object.assign(document.createElement("dd"), { textContent: v }));
+    const stat = (k: string, v: string): HTMLElement => {
+      const dd = Object.assign(document.createElement("dd"), { textContent: v });
+      dl.append(Object.assign(document.createElement("dt"), { textContent: k }), dd);
+      return dd;
     };
     stat("kept", `${model.kept}/${model.total} px`);
     stat("score", model.score.toLocaleString("en-US").replace(/,/g, " "));
@@ -955,7 +956,8 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     stat("gulp burped", model.gulpBurped ? "yes" : "no");
     stat("grabbed back", String(model.recovered));
     stat("lost", `${model.lostThisRun} (scars)`);
-    stat("bits", `+${model.bits}`);
+    // The host's ack is the one Bits figure (the shell toasts the same number): "…" until it lands.
+    const bitsDd = stat("bits", bitsLabel(null, false));
     row.append(sil, dl);
     card.append(row);
     const note = document.createElement("p");
@@ -1028,6 +1030,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     report
       .then((ack) => {
         note.textContent = scarNote(model, ack, false);
+        bitsDd.textContent = bitsLabel(ack, false);
         setReplay(ack, false);
         if (regrowBtn && ack.applied && quote) regrowBtn.disabled = false;
         else if (regrowBtn && ack.applied)
@@ -1038,6 +1041,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       })
       .catch(() => {
         note.textContent = scarNote(model, null, true);
+        bitsDd.textContent = bitsLabel(null, true);
         setReplay(null, true);
       });
   };
