@@ -6,6 +6,9 @@ import { ROBINHOOD_RPC_URL } from "@pl/mock-rpc";
 import { createPublicClient, http, type Hex } from "viem";
 import { expect, test, TEST_WALLET_INFO, walletControls } from "../fixtures/index.js";
 
+// The harness drives its own in-process chain (`mockRpc.world`), not the shared stack chain.
+test.use({ sharedChain: false });
+
 const ORIGIN = "http://pl-e2e.test";
 
 test.beforeEach(async ({ page }) => {
