@@ -4,15 +4,35 @@
  * decor, from `GET /api/home/:tokenId` + the Friend's appearance and public state. Loading / error / retry states;
  * "back to the sky" returns to the room you left.
  */
-import { effectiveLost, type FriendAppearance, type FriendPublic, type HomeView, type TokenIdStr } from "@pl/shared";
+import {
+  effectiveLost,
+  EMPTY_MASK,
+  type FriendAppearance,
+  type FriendPublic,
+  type HomeView,
+  type TokenIdStr,
+} from "@pl/shared";
 import { useServices } from "../app/services.js";
-import { errorMessage } from "../api/client.js";
+import { ApiRequestError, errorMessage } from "../api/client.js";
 import { useAsync } from "../lib/use-async.js";
 import { LiveStage } from "../stage/LiveStage.js";
 import { FriendSprite } from "../ui/FriendSprite.js";
 import { ErrorBox, LinkButton, Loading } from "../ui/kit.js";
 import { friendHref } from "./doors.js";
 import { fetchHome, recordVisit } from "./home-api.js";
+
+/** Public state of a Friend the server has never seen: whole, no gold, no streak. */
+export function wholeFriend(tokenId: TokenIdStr, now: number): FriendPublic {
+  return {
+    tokenId,
+    scars: { lost: EMPTY_MASK, updatedAt: now, version: 0 },
+    goldHeld: 0,
+    glowCracks: 0,
+    streak: 0,
+    lastSeen: now,
+    economy: "sim",
+  };
+}
 
 interface IsleData {
   home: HomeView;
@@ -27,7 +47,11 @@ export function HomeIsle({ tokenId }: { tokenId: TokenIdStr }) {
     const [home, appearance, pub] = await Promise.all([
       fetchHome(tokenId),
       api.appearance(tokenId),
-      api.publicFriend(tokenId),
+      // A Friend that never played has no public state yet: it is simply whole.
+      api.publicFriend(tokenId).catch((e: unknown) => {
+        if (e instanceof ApiRequestError && e.status === 404) return wholeFriend(tokenId, Date.now());
+        throw e;
+      }),
     ]);
     const me = identity.store.get().identity;
     if (me.mode === "owner" && me.view.appearance.tokenId !== tokenId) recordVisit(tokenId);
