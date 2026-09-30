@@ -1,0 +1,27 @@
+{
+  "name": "@pl/seed-pack",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Seed Pack Booth: a stock FriendSDK chance game (sandboxed child) for the Pixel Life hub.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dev": "friendsdk dev .",
+    "build": "friendsdk build .",
+    "sdk:check": "friendsdk check .",
+    "sdk:test": "friendsdk test . --width 360 && friendsdk test . --width 960",
+    "sdk:flow": "node tests/sdk-flow.mjs"
+  },
+  "dependencies": {
+    "@rarefriends/friendsdk": "file:../../vendor/rarefriends-friendsdk-0.1.4.tgz",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@pl/shared": "*",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "happy-dom": "^20.14.5",
+    "playwright": "^1.63.0"
+  }
+}

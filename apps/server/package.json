@@ -8,19 +8,26 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "node scripts/build.mjs",
+    "start": "node dist/main.mjs",
+    "dev": "node --env-file-if-exists=.env --import tsx --watch src/main.ts",
+    "migrate": "node --env-file-if-exists=.env --import tsx src/cli/migrate.ts"
   },
   "dependencies": {
     "@pl/shared": "*",
     "@rarefriends/friendsdk": "file:../../vendor/rarefriends-friendsdk-0.1.4.tgz",
     "fastify": "^5.12.5",
-    "ws": "^8.22.0",
     "kysely": "^0.29.6",
     "pg": "^8.23.1",
-    "viem": "2.56.3"
+    "pino": "^10.3.1",
+    "viem": "2.56.3",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
+    "@pl/mock-rpc": "*",
+    "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.2",
-    "@types/pg": "^8.23.1"
+    "esbuild": "^0.28.2"
   }
 }

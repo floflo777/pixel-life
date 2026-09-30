@@ -1,0 +1,11 @@
+{
+  "name": "Pixel Life: Seed Pack",
+  "consumable": "Seed Pack",
+  "price": "5000000000000000000",
+  "outcomes": [
+    { "name": "Sprout", "chanceBps": 5600, "reward": "2000000000000000000" },
+    { "name": "Bloom", "chanceBps": 3000, "reward": "5000000000000000000" },
+    { "name": "Full Bloom", "chanceBps": 1200, "reward": "8000000000000000000" },
+    { "name": "Gold Pixel", "chanceBps": 200, "reward": "45000000000000000000" }
+  ]
+}

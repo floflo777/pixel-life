@@ -1,0 +1,64 @@
+# Pixel Life on ailog: game server + PostgreSQL 16, isolated from every other service on the host.
+# Run from /home/ubuntu/pixel-life/deploy:  docker compose up -d --build
+# Ports are bound to 127.0.0.1 only (3100 api, 55432 postgres); nginx is the only public entry.
+name: pixel-life
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?set in deploy/.env}
+      POSTGRES_USER: ${POSTGRES_USER:?set in deploy/.env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in deploy/.env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:55432:5432"
+    networks: [pixel-life]
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    security_opt: ["no-new-privileges:true"]
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: pixel-life-server:latest
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3100"
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+    ports:
+      - "127.0.0.1:3100:3100"
+    networks: [pixel-life]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs: ["/tmp"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    stop_grace_period: 15s
+    logging: *logging
+
+networks:
+  pixel-life:
+    name: pixel-life-net
+    driver: bridge
+
+volumes:
+  pgdata:
+    name: pixel-life-pgdata

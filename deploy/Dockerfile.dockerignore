@@ -1,0 +1,14 @@
+# Build context is the repo root; ship only what the server build needs.
+**/node_modules
+**/dist
+**/coverage
+**/.wrangler
+**/.env
+**/.env.*
+!**/.env.example
+.git
+docs
+tests/e2e/test-results
+tests/e2e/playwright-report
+deploy/nginx
+*.log
