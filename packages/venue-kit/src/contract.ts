@@ -11,6 +11,7 @@ import type {
   EconomyQuote,
   EconomyReceipt,
   FriendView,
+  Hex64,
   RunAck,
   RunKind,
   RunSummary,
@@ -93,6 +94,12 @@ export interface VenueResult {
   kind: RunKind;
   inputs: Uint8Array;
   claimed: RunSummary;
+  /** Scars the run started from (server replays from them when plausible, see POST /api/runs). */
+  startLost?: Hex64;
+  /** Wall-clock ms when the run started (pairs with `startLost`). */
+  startedAt?: number;
+  /** Belt id when this run is a Fling Belt trial (seeded by `beltTrialSeed`). */
+  beltTrial?: string;
 }
 
 /** The server's acknowledgement of a reported result. */
