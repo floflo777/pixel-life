@@ -5,5 +5,6 @@ export * from "./world";
 export * from "./friend";
 export * from "./home";
 export * from "./hub";
-export * from "./handheld";
+export * as handheld from "./handheld";
+export * from "./creatures";
 export * from "./venues/pixel-life";
