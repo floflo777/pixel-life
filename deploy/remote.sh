@@ -34,6 +34,13 @@ compose() {
   local rel="$1"; shift
   run sudo env SERVER_TAG="$rel" docker compose -p pixel-life -f "$(release_dir "$rel")/deploy/docker-compose.yml" "$@"
 }
+# Under --dry-run the release may not be uploaded yet: steps that read its files stop after printing their intent.
+need_release_files() {
+  [[ -d "$(release_dir "${RELEASE:?}")" ]] && return 0
+  [[ "$DRY_RUN" == 1 ]] || die "release $RELEASE not uploaded"
+  log "(dry run) release not uploaded yet: would $1"
+  return 1
+}
 current_release() { basename "$(readlink -f "$ROOT/current" 2>/dev/null || echo none)"; }
 
 # Removes the nginx vhost we are about to replace if nginx -t fails, restoring the previous file.
@@ -134,6 +141,7 @@ step_tls() {
     return 0
   fi
   local rel="${RELEASE:?}" tmp
+  need_release_files "serve HTTP-01 for $ORIGIN_HOST and run certbot certonly --webroot" || return 0
   run sudo mkdir -p "$ACME_ROOT/.well-known/acme-challenge"
   # Serve the HTTP-01 challenge for this host only (a temporary port-80 vhost), then request the certificate.
   tmp="$(mktemp)"
@@ -147,6 +155,7 @@ step_tls() {
 step_nginx() {
   local rel="${RELEASE:?}" dir tmp
   dir="$(release_dir "$rel")"
+  need_release_files "install $SNIPPET and render/install /etc/nginx/sites-available/$VHOST_NAME, nginx -t, reload" || return 0
   if ! sudo test -f "$SNIPPET"; then
     run sudo install -m 644 -o root -g root "$dir/deploy/nginx/cloudflare-allow.conf" "$SNIPPET"
   fi
