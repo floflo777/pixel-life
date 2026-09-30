@@ -137,10 +137,10 @@ describe("room layouts", () => {
     const none = ROOMS.flatMap((slug) => roomZones(slug, new Set()).map((z) => z.target));
     for (const id of ["greenhouse", "daily-stone", "mend-board", "pixel-life", "seed-pack"]) expect(none).toContain(id);
     for (const id of ["handheld", "bump-sumo", "pixel-putt"]) expect(none).not.toContain(id);
-    expect(optionalVenues("pixel-arena")).toEqual(["bump-sumo", "pixel-putt"]);
-    const sumoOnly = roomZones("pixel-arena", new Set(["bump-sumo"])).map((z) => z.target);
-    expect(sumoOnly).toContain("bump-sumo");
-    expect(sumoOnly).not.toContain("pixel-putt");
+    expect(optionalVenues("pixel-arena")).toEqual(["bump-sumo"]);
+    expect(optionalVenues("sky-docks")).toEqual(["pixel-putt"]);
+    expect(roomZones("pixel-arena", new Set(["bump-sumo"])).map((z) => z.target)).toContain("bump-sumo");
+    expect(roomZones("sky-docks", new Set(["bump-sumo"])).map((z) => z.target)).not.toContain("pixel-putt");
   });
 });
 

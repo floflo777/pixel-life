@@ -387,7 +387,7 @@ const satClouds: CloudSpec[] = [
 ];
 const southBridge: Bridge = { from: W(0, 1000), to: W(0, 2350) };
 
-/** Side halls on the arena isle sit just off its ±6 u rim, doors facing in (doormat at x = ±5.6). */
+/** The side hall on the arena isle sits just off its −6 u rim, door facing in (doormat at x = −5.6). */
 const ARENA_SIDE_X = 6.75;
 
 const pixelArena: Layout = {
@@ -406,8 +406,8 @@ const pixelArena: Layout = {
     W(-950, -1400),
     W(950, -1400),
     W(0, -1600),
-    // Side halls (Bump Sumo west, Pixel Putt east): always land, built or not.
-    ...[-1, 1].flatMap((s) => [-1.9, 0, 1.9].flatMap((z) => [6.0, 6.75, 7.5].map((x) => ({ x: s * x, z })))),
+    // West side hall (Bump Sumo): always land, built or not.
+    ...[-1.9, 0, 1.9].flatMap((z) => [-6.0, -6.75, -7.5].map((x) => ({ x, z }))),
   ]),
   props: [
     { kind: "venue", x: 0, z: -5.7, name: "pixel-life", icon: PIXEL_LIFE_ICON, popPixel: [8, 12] },
@@ -462,14 +462,6 @@ const pixelArena: Layout = {
       { x: -ARENA_SIDE_X, z: 0, facing: 1 },
       { area: rect(-1480, -160, -1320, 160), spawn: [-1050, 150] },
       { roof: PALETTE.pond, roofDark: 0x5f98c0 },
-    ),
-    hallDoor(
-      "pixel-putt",
-      "PIXEL PUTT",
-      PIXEL_PUTT_ICON,
-      { x: ARENA_SIDE_X, z: 0, facing: 3 },
-      { area: rect(1320, -160, 1480, 160), spawn: [1050, -150] },
-      { roof: PALETTE.meadowDrip, roofDark: PALETTE.meadowTuft },
     ),
   ],
 };
@@ -528,9 +520,16 @@ const seedBooth: Layout = {
   restRadius: { rx: 7.4, rz: 6.0 },
 };
 
+/** Pixel Putt's hall on the sky docks' north rim (doormat at wire x = −125). */
+const DOCKS_PUTT_X = -0.5;
+
 const skyDocks: Layout = {
   island: { ...SAT_ISLAND, seed: 101, pond: { i: 18, j: -12, r: 3 } },
-  cover: satCover("sky-docks"),
+  // The Pixel Putt hall (north rim) stands on land whether or not it is built.
+  cover: satCover(
+    "sky-docks",
+    [-2.4, -0.5, 1.4].flatMap((x) => [-6.5, -5.7, -4.9].map((z) => ({ x, z }))),
+  ),
   props: [
     { kind: "board", x: -3.6, z: -3.4, name: "mend-board" },
     { kind: "tree", x: -5.6, z: 2.8, canopy: "paper", radius: 0.7, trunk: 5, seed: 111 },
@@ -568,6 +567,17 @@ const skyDocks: Layout = {
   bounds: satBounds,
   restRadius: { rx: 7.4, rz: 6.0 },
   well: { x: -0.8, z: 0 },
+  optional: [
+    // Scarless mini-golf by the Mend Well: the relaxed venue for healing days (GDD §11.8 A).
+    hallDoor(
+      "pixel-putt",
+      "PIXEL PUTT",
+      PIXEL_PUTT_ICON,
+      { x: DOCKS_PUTT_X, z: -5.7, facing: 0 },
+      { area: rect(-305, -1180, 55, -1010), spawn: [-125, -700] },
+      { roof: PALETTE.meadowDrip, roofDark: PALETTE.meadowTuft },
+    ),
+  ],
 };
 
 const dailyGate: Layout = {
