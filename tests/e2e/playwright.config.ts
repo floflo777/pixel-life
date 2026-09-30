@@ -10,8 +10,11 @@ import { API_PORT, API_URL, REMOTE_URL, RPC_PORT, SHARED_RPC_URL, WEB_PORT, WEB_
  */
 const ci = !!process.env["CI"];
 const baseURL = REMOTE_URL ?? WEB_URL;
-/** WebKit runs when its binary is installed (CI installs it with system deps; `npm run e2e:install` locally). */
-const hasWebKit = existsSync(webkit.executablePath());
+/**
+ * WebKit (iPhone 13) runs in CI, which installs it with its system libraries. Locally it is opt-in (E2E_WEBKIT=1)
+ * because the binary alone does not launch without them (`sudo npx playwright install-deps webkit`).
+ */
+const hasWebKit = existsSync(webkit.executablePath()) && (ci || process.env["E2E_WEBKIT"] === "1");
 
 const webServer: PlaywrightTestConfig["webServer"] = REMOTE_URL
   ? undefined

@@ -11,12 +11,19 @@ import { expect, test, walletControls } from "../fixtures/index.js";
 const SEED_PACK_CHILD = new URL("../../../apps/seed-pack/.friendsdk/game.html", import.meta.url);
 const FRAME = 'iframe[src="/venues/seed-pack/game.html"]';
 
-/** Bound owner → The Sky → the booth door; resolves once the child ledger has been read. */
+/** Opens the booth; a fresh page load asks the owner to reconnect the wallet (the SDK gate runs again). */
+async function openBooth(page: Page): Promise<void> {
+  await page.goto("/venue/seed-pack");
+  const reconnect = page.getByRole("button", { name: "connect wallet" });
+  await expect(reconnect.or(page.locator(FRAME))).toBeVisible({ timeout: 15_000 });
+  if (await reconnect.isVisible()) await reconnect.click();
+  await expect(page.locator(FRAME)).toHaveCount(1, { timeout: 15_000 });
+}
+
+/** Bound owner → the booth (its Sky door is a 3D doormat, so by URL); resolves once the child shows the shop. */
 async function enterBooth(page: Page, tokenId: string): Promise<FrameLocator> {
   await connectAndBind(page, tokenId);
-  await page.getByRole("link", { name: "enter the sky" }).click();
-  await page.getByRole("link", { name: "seed pack booth" }).click();
-  await expect(page.locator(FRAME)).toHaveCount(1, { timeout: 15_000 });
+  await openBooth(page);
   const child = page.frameLocator(FRAME);
   await expect(child.getByRole("button", { name: /buy 1/i })).toBeVisible({ timeout: 15_000 });
   return child;
@@ -52,10 +59,7 @@ test.describe("seed pack booth", () => {
     await expect(child.locator("button", { hasText: /inventory 1/i })).toBeVisible();
 
     // A reload keeps the kept reward: the ledger is the server's, not the SDK's session-local preview.
-    await page.reload();
-    const reconnect = page.getByRole("button", { name: "connect wallet" });
-    await expect(reconnect.or(page.locator(FRAME))).toBeVisible({ timeout: 15_000 });
-    if (await reconnect.isVisible()) await reconnect.click();
+    await openBooth(page);
     const again = page.frameLocator(FRAME);
     const inventory = again.locator("button", { hasText: /inventory 1/i });
     await expect(inventory).toBeVisible({ timeout: 15_000 });

@@ -1,8 +1,9 @@
 /**
  * Reusable user flows for the specs: they drive the real UI (no API shortcuts) so each spec reads like the journey.
  */
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import type { MeRes } from "@pl/shared";
+import { REMOTE_URL } from "../env/stack.js";
 
 /** Longest a Loose Pixels run takes in real time (60 s of sim plus the end slow-mo, with headroom for slow CI). */
 export const RUN_TIMEOUT_MS = 100_000;
@@ -22,24 +23,27 @@ export async function me(page: Page): Promise<MeRes> {
   return (await res.json()) as MeRes;
 }
 
+/** The Loose Pixels results card (the venue's own, a dialog titled "run over · <arena> · gulp: <mood>"). */
+export const runResults = (page: Page): Locator => page.getByRole("dialog", { name: /run over|needs a nap/i });
+
 /**
- * Plays one real Loose Pixels run on `/play` (the venue must be mounted) with scripted drag-flings: press down on the
- * stage, drag, release (the Friend launches opposite to the drag), a new direction every fling, until the run ends
- * and the results card shows. Returns the number of flings sent.
+ * Plays one real Loose Pixels run on `/play` (the venue must be mounted, showing its start card) with scripted
+ * drag-flings: press on the stage, drag, release (the Friend launches opposite to the drag), a new direction every
+ * fling, until the run ends and the venue shows its results card. Returns the number of flings sent.
  */
 export async function playRun(page: Page, options: { gapMs?: number } = {}): Promise<number> {
   const stage = page.locator('[data-testid="play"] canvas').first();
-  await page.getByRole("button", { name: "▶ play" }).click();
+  await page.getByRole("button", { name: /▶ play/i }).click();
   await expect(page.getByRole("timer")).toBeVisible();
   const box = await stage.boundingBox();
   if (!box) throw new Error("the venue stage has no box");
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   const reach = Math.min(box.width, box.height) / 3;
-  const score = page.getByTestId("result-score");
+  const results = runResults(page);
   const deadline = Date.now() + RUN_TIMEOUT_MS;
   let flings = 0;
-  while (Date.now() < deadline && !(await score.isVisible())) {
+  while (Date.now() < deadline && !(await results.isVisible())) {
     const a = flings * 2.39996; // golden angle: directions spread over the arena
     await page.mouse.move(cx, cy);
     await page.mouse.down();
@@ -48,10 +52,34 @@ export async function playRun(page: Page, options: { gapMs?: number } = {}): Pro
     flings++;
     await page.waitForTimeout(options.gapMs ?? 650);
   }
-  await expect(score).toBeVisible({ timeout: 5_000 });
+  await expect(results).toBeVisible({ timeout: 5_000 });
   return flings;
+}
+
+/** A stat of the venue results card (`kept`, `score`, `lost`, `bits`, ...), as its text. */
+export const resultStat = (page: Page, name: string): Promise<string> =>
+  runResults(page).locator(`dt:text-is("${name}") + dd`).innerText();
+
+/** The shell HUD's pixel count for the current Friend (`present/total`), read from its accessible name. */
+export async function hudPixels(page: Page): Promise<{ present: number; total: number }> {
+  const label = (await page.getByTestId("hud-friend").getAttribute("aria-label")) ?? "";
+  const m = /(\d+) of (\d+) pixels/.exec(label);
+  if (!m) throw new Error(`unexpected HUD label: ${label}`);
+  return { present: Number(m[1]), total: Number(m[2]) };
 }
 
 /** True when the document is not wider than the viewport (the 360 px budget). */
 export const noHorizontalOverflow = (page: Page): Promise<boolean> =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+
+/** A guest arriving in the plaza: Play-now identity, then the Sky (live unless `live: false`, e.g. without WebGL). */
+export async function arriveInSky(page: Page, { live = true }: { live?: boolean } = {}): Promise<void> {
+  await page.goto("/");
+  await page.getByTestId("play-now").click();
+  await expect(page).toHaveURL(/\/play/);
+  await page.goto("/sky");
+  await expect(page.getByTestId("sky")).toBeVisible();
+  // A deployed plaza rate-limits WebSocket joins per IP (6/min), which a whole suite from one runner exceeds.
+  if (live && !REMOTE_URL)
+    await expect(page.getByTestId("sky")).toHaveAttribute("data-status", "online", { timeout: 15_000 });
+}

@@ -7,9 +7,11 @@
 import type { Page } from "@playwright/test";
 import { popcount, type Hex64 } from "@pl/shared";
 import { getAddress } from "viem";
-import { connectAndBind, me, playRun, RUN_TIMEOUT_MS } from "../fixtures/flows.js";
+import { connectAndBind, hudPixels, me, playRun, resultStat, runResults, RUN_TIMEOUT_MS } from "../fixtures/flows.js";
 import { expect, test, walletControls } from "../fixtures/index.js";
-import { seedPastRuns } from "../fixtures/seed.js";
+import { runVerification, seedPastRuns } from "../fixtures/seed.js";
+
+const lostOf = async (page: Page) => popcount(((await me(page)).friend?.pub.scars.lost ?? "0".repeat(64)) as Hex64);
 
 const connect = async (page: Page) => {
   await page.goto("/connect");
@@ -78,21 +80,21 @@ test.describe("wallet", () => {
       timeout: RUN_TIMEOUT_MS,
     });
     await playRun(page);
-    const ack = (await (await submitted).json()) as { verified: string; applied: boolean };
+    const ack = (await (await submitted).json()) as { runId: string; verified: string; applied: boolean };
     expect(ack.verified).not.toBe("mismatch");
-    await expect(page.getByRole("heading", { name: "RUN OVER" })).toBeVisible();
-    await expect(page.locator(".results-problem")).toHaveCount(0);
+    await expect(runResults(page)).toBeVisible();
+    // No verification problem in the Bits toast.
+    await expect(page.getByRole("status").filter({ hasText: /\+\d+ bits/ })).not.toContainText(/verify|offline/i);
 
-    const lost = Number(await page.locator(".results-stats .num").nth(2).textContent());
-    // The server applies the scars once the replay verifies (sync or by the background worker).
-    await expect
-      .poll(async () => popcount(((await me(page)).friend?.pub.scars.lost ?? "0".repeat(64)) as Hex64), {
-        timeout: 20_000,
-      })
-      .toBe(lost);
+    const lost = Number(/\d+/.exec(await resultStat(page, "lost"))?.[0]);
+    expect(await lostOf(page)).toBe(lost);
+    // The server replays the input log in a worker: the browser's sim and the server's must agree bit for bit.
+    await expect.poll(() => runVerification(ack.runId), { timeout: 30_000 }).toBe("ok");
+
     // A reload restores the owner session from the cookie with the same scars.
     await page.reload();
     await expect(page.getByTestId("hud-friend")).toContainText(`#${tokenId}`);
+    expect((await hudPixels(page)).present).toBe((await hudPixels(page)).total - lost);
   });
 
   test.describe("wrong chain", () => {

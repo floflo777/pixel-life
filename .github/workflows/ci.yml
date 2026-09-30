@@ -35,6 +35,23 @@ jobs:
       - run: npm run build
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      # The e2e server launcher (tests/e2e/env/server.ts) creates and drops its own database on this cluster.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      CI: "true"
+      E2E_DATABASE_URL: postgres://postgres:ci@127.0.0.1:5432/postgres
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,9 +62,8 @@ jobs:
       # Browsers plus their system libraries (WebKit needs e.g. libavif16 on Ubuntu 24.04).
       - run: npx playwright install --with-deps chromium webkit
         working-directory: tests/e2e
+      # Playwright starts the stack itself: mock chain, apps/server (+ edge stand-in) and a preview of the web build.
       - run: npm run e2e -w @pl/e2e
-        env:
-          CI: "true"
       - if: failure()
         uses: actions/upload-artifact@v4
         with:

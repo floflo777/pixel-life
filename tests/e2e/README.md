@@ -1,71 +1,61 @@
 # @pl/e2e — Playwright suite
 
-End-to-end tests for Pixel Life (architecture §5). Every test runs against a **fresh mock Robinhood
-Chain** (`@pl/mock-rpc`) with a **fresh random test wallet** injected into the page. No test ever
-talks to the real RPC or holds funds.
+End-to-end tests for Loose Pixels (architecture §5) on a **real local stack**, or read-only against a deployed build.
 
 ```sh
-npm run e2e:install -w @pl/e2e        # once: chromium + webkit
-npm run e2e -w @pl/e2e                # all projects
-npm run e2e -w @pl/e2e -- --project desktop-chromium
-PL_WEB_URL=https://staging.example npm run e2e -w @pl/e2e   # against a deployed build
+npm run e2e:install -w @pl/e2e                          # once: chromium + webkit
+npm run e2e -w @pl/e2e                                  # full suite, stack started for you
+npm run e2e -w @pl/e2e -- --project desktop-chromium --workers=1 hub   # one project, one file, one browser
+npm run smoke:prod -w @pl/e2e                           # read-only specs against https://loose-pixels.florent-g.workers.dev
+PL_WEB_URL=https://other.example npm run smoke:prod -w @pl/e2e
 ```
 
-Projects: `desktop-chromium`, `mobile-pixel7` (Chromium, touch), `mobile-iphone13` (WebKit, touch).
-E2E is not part of `npm run check` (it needs browsers); CI runs it as its own job.
+Local runs need Docker (a throwaway `postgres:16-alpine`) unless `E2E_DATABASE_URL` points at a cluster you own.
+Software WebGL is CPU-heavy: prefer `--workers=1` and one project locally; CI runs the whole matrix.
 
-WebKit on Ubuntu 24.04 needs `libavif16` (`sudo npx playwright install-deps webkit`).
+## The stack (`playwright.config.ts` `webServer`, `env/`)
 
-## What each test gets (`fixtures/index.ts`)
+| Process                     | Port  | What                                                                                                                                                                                                          |
+| --------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@pl/mock-rpc --admin`      | 18545 | The shared mock Robinhood Chain. apps/server reads it (`RPC_URL`), every browser's chain RPC is routed to it, and tests drive it over `POST /__admin`.                                                        |
+| `env/server.ts`             | 13100 | Fresh Postgres DB (CI service via `E2E_DATABASE_URL`, else Docker), production build of apps/server (migrations on start, test secrets, `GUEST_MODE=on`, sim economy) on 13101 behind `env/edge.ts`.          |
+| `env/edge.ts` (in the same) | 13100 | Stand-in for the edge Worker: adds `x-pl-origin-key` and `x-pl-client-ip` (a fresh address per connection, or the test's `x-e2e-client-ip`), so the server runs in its production posture on one loopback IP. |
+| `vite preview` of apps/web  | 14173 | `npm run build:all -w @pl/web` then preview; `/api` and `/ws` proxy to 13100. `E2E_SKIP_BUILD=1` reuses `dist/`.                                                                                              |
+
+Locally the servers are reused if already running (`reuseExistingServer`). Ports: `E2E_WEB_PORT`, `E2E_API_PORT`,
+`E2E_SERVER_PORT`, `E2E_RPC_PORT`. Server logs: `E2E_SERVER_LOG_LEVEL=info`. WebKit (iPhone 13, guest/read-only specs
+only) runs in CI; locally set `E2E_WEBKIT=1` after `sudo npx playwright install-deps webkit`.
+
+## Fixtures (`fixtures/`)
 
 Import `test` / `expect` from `../fixtures/index.js`, never from `@playwright/test`.
 
-| Fixture            | What it is                                                                                                                                                                                                                                                                                                                                              |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `wallet`           | `TestWallet`: `walletAccounts` (default 2) random viem accounts. Keys stay in Node; the page asks Node to sign through a binding.                                                                                                                                                                                                                       |
-| `mockRpc`          | `startMockRpc()` on a free port. World = every design Friend in `docs/design/data/friends.json`; the wallet's account 0 owns `walletFriends` (default `344030`, `344033`), fixture owners alice/bob own the rest (one of alice's is generation-0). Mutate it mid-test: `mockRpc.world.transfer(id, to)`, `.setFault({ kind: "rpc-error" })`, `.mine()`. |
-| `chainRoute`       | `https://rpc.mainnet.chain.robinhood.com` → mock, for every page and frame of the context (including the SDK sandboxed child). `chainRoute.forwarded` lists what it answered.                                                                                                                                                                           |
-| `context` / `page` | Wallet injected before any page script: EIP-1193 provider, announced over EIP-6963 (`Pixel Life Test Wallet`, uuid `TEST_WALLET_INFO.uuid`) and as `window.ethereum`. Top-level frame only.                                                                                                                                                             |
+| Fixture / helper             | What                                                                                                                                           |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wallet`                     | Fresh random accounts (default 2), injected as EIP-1193 + EIP-6963 ("Pixel Life Test Wallet"). Keys stay in Node.                              |
+| `friends`                    | Fresh Friends minted on the shared chain to account 0 (`ownedFriends`, default 2; `ownedGenerationZero` adds hidden gen-0 ones).               |
+| `chain`                      | Shared chain admin: `mint`, `transfer`, `mine`, `fund`, `fault`, `ownerOf`.                                                                    |
+| `openPlayer(browser, chain)` | A second browser with its own wallet and Friends (hub presence, Mend, market buyer).                                                           |
+| `mockRpc`                    | A per-test in-process mock (`test.use({ sharedChain: false })`): the harness self-test and SDK-only checks.                                    |
+| `flows.ts`                   | `connectAndBind`, `playRun` (real run with scripted drag-flings), `runResults`, `resultStat`, `hudPixels`, `me`, `arriveInSky`.                |
+| `seed.ts`                    | Direct DB seeding for history the UI can't reach quickly: `seedPastRuns` (past the 3 newbie runs), `seedScars`, `seedGold`, `runVerification`. |
 
-Options (`test.use({...})`): `walletFriends`, `walletGenerationZero`, `walletAccounts`,
-`injectWallet: false` (guest browser), `walletChainId: "0x1"` (wrong chain).
+Every test gets fresh wallets and token ids, so tests are isolated without resets and parallel-safe.
+Options: `injectWallet: false` (guest browser), `walletChainId: "0x1"` (wrong chain), `walletAccounts`.
+Page controls: `walletControls.switchAccount(page, 1)`, `.setChain(page, "0x1")`, `.disconnect(page)`, `.requests(page)`.
 
-Wallet methods: `eth_accounts`, `eth_requestAccounts`, `eth_chainId`, `wallet_switchEthereumChain`
-(4902 for unknown chains), `wallet_addEthereumChain`, `personal_sign` (SIWE), `eth_signTypedData_v4`,
-`eth_sendTransaction` (signed in Node and sent to the mock; an unfunded wallet gets "insufficient
-funds", as on mainnet), and any other `eth_*` read, forwarded to the (routed) RPC.
-Page controls: `walletControls.switchAccount(page, 1)`, `.setChain(page, "0x1")`,
-`.disconnect(page)`, `.requests(page)`.
+## Specs
 
-## Adding specs (later tasks)
+`web-guest` (landing, Play now < 3 s, a real run → results → local scars, 360 px), `web-wallet` (SIWE bind, newbie runs,
+verified run scars with the server replay agreeing, wrong chain, non-owner, gen-0, transfer, account switch),
+`seed-pack` (buy/open/keep/redeem on the server ledger), `hub` (presence, moves, emotes and chat on the wire; every
+venue and page reachable), `hub-no-webgl` (fallback doors), `economy` and `economy-pages` (pending the pages wiring:
+`test.fixme`), `harness`, `sim-determinism`, `smoke`.
 
-1. Put specs in `specs/<area>.spec.ts` (`guest.spec.ts`, `wallet.spec.ts`, `seed-pack.spec.ts`,
-   `hub.spec.ts`, …). Use relative URLs: `baseURL` is the web app.
-2. The web app is started automatically once `apps/web/index.html` exists (`npm run dev -w @pl/web`
-   on port 5173, see `playwright.config.ts`). The web task adds a `dev` script that honours
-   `--host/--port/--strictPort` (Vite does).
-3. Delete the `test.skip(!webReady, …)` guard in `specs/smoke.spec.ts` once the landing page exists,
-   and make its assertions match the real landing.
-4. Server flows (SIWE verify, `/api/session/friend`) need the server to read the **same** mock:
-   start `apps/server` with `RPC_URL=<mockRpc.url>`. Since `mockRpc` is per test, the server task
-   should add a worker-scoped fixture that starts one mock + one server per Playwright worker (or
-   let the server take the RPC URL per request in test mode). Do not point the server at the
-   public RPC in e2e.
-5. Multi-user flows (hub presence, Mend): `browser.newContext()` and call
-   `installTestWallet(ctx, createTestWallet(), { rpcUrl: ROBINHOOD_RPC_URL, nodeRpcUrl: mockRpc.url })`
-   plus `routeChainRpc(ctx, mockRpc.url)`, with ownership added via `mockRpc.world.mint({...})`.
-6. For no-network guarantees (SDK fixture rule), call
-   `routeChainRpc(context, mockRpc.url, { allowOrigins: [baseURL] })` and assert `blocked` is empty.
-7. Negative identity cases to cover (architecture §5): wrong chain (`walletChainId: "0x1"`),
-   non-owner (`walletFriends: []`), gen-0 (`walletGenerationZero`), RPC error (`setFault`), account
-   switch mid-venue (`walletControls.switchAccount`), transfer mid-session (`world.transfer`).
-
-`specs/harness.spec.ts` is the harness's own self-test and runs without the web app.
+`smoke:prod` runs `smoke`, `web-guest`, `hub` and `economy-pages` with one worker: no wallet, no purchases, no runs
+posted (the specs skip anything that writes when `PL_WEB_URL` is set).
 
 ## Mock RPC outside Playwright
 
-- Dev: `npm start -w @pl/mock-rpc -- --port 8545 --owner 0xYourAddress` then point `RPC_URL` (server)
-  at `http://127.0.0.1:8545`. The browser SDK hardcodes the public URL, so in dev use a Vite proxy or
-  the e2e route.
-- Node tests: `startMockRpc({ world })` + `redirectFetch(server.url)` makes SDK calls that hardcode
-  the public RPC (e.g. `createFriendReader()`) hit the mock. See `tools/mock-rpc/src/sdk.test.ts`.
+- Dev: `npm start -w @pl/mock-rpc -- --port 8545 --owner 0xYourAddress` then point `RPC_URL` (server) at it.
+- Node tests: `startMockRpc({ world })` + `redirectFetch(server.url)` (see `tools/mock-rpc/src/sdk.test.ts`).

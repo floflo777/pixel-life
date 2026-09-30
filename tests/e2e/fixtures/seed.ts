@@ -73,3 +73,13 @@ export async function seedGold(tokenId: string, count = 1): Promise<void> {
     );
   });
 }
+
+/** Replay verification of a stored run: `pending` until the server's worker replays it, then `ok` or `mismatch`. */
+export async function runVerification(runId: string): Promise<"pending" | "ok" | "mismatch"> {
+  return withDb(async (db) => {
+    const { rows } = await db.query<{ verified: number }>("SELECT verified FROM runs WHERE id = $1", [runId]);
+    const v = rows[0]?.verified;
+    if (v === undefined) throw new Error(`run ${runId} is not stored`);
+    return v === 1 ? "ok" : v === -1 ? "mismatch" : "pending";
+  });
+}

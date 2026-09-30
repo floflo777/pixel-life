@@ -57,7 +57,12 @@ test.describe("sim determinism across engines", () => {
       test.skip(testInfo.project.name !== "desktop-chromium", "launches its own engines once");
       test.skip(!existsSync(engine.executablePath()), `${name} is not installed (npx playwright install ${name})`);
       test.setTimeout(180_000);
-      const browser = await engine.launch();
+      // Launch with plain args: the project's SwiftShader switches are Chromium-only.
+      const browser = await engine.launch({ args: [] }).catch((error: unknown) => {
+        const missingLibs = error instanceof Error && /shared libraries/.test(error.message);
+        test.skip(missingLibs, `${name} lacks system libraries (sudo npx playwright install-deps ${name})`);
+        throw error;
+      });
       try {
         const page = await browser.newPage();
         await page.setContent("<!doctype html><title>sim determinism</title>");

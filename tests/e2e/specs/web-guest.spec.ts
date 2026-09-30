@@ -7,7 +7,7 @@
 import type { Page } from "@playwright/test";
 import { REMOTE_URL } from "../env/stack.js";
 import { expect, test, walletControls } from "../fixtures/index.js";
-import { noHorizontalOverflow, playRun, RUN_TIMEOUT_MS } from "../fixtures/flows.js";
+import { hudPixels, noHorizontalOverflow, playRun, resultStat, runResults, RUN_TIMEOUT_MS } from "../fixtures/flows.js";
 
 const stage = (page: Page) => page.locator('[data-testid="play"] .live-stage');
 
@@ -36,7 +36,9 @@ test.describe("guest", () => {
     expect(chainRoute.forwarded).toEqual([]);
   });
 
-  test("a real run with drag-flings reaches results; the loaner's scars persist after reload", async ({ page }) => {
+  test("a real run with drag-flings reaches results; the loaner's scars persist and the Sky is next", async ({
+    page,
+  }) => {
     test.setTimeout(RUN_TIMEOUT_MS + 60_000);
     // Read-only against a deployed build: don't post bot runs to the public Visitors board.
     test.skip(!!REMOTE_URL, "posts a guest run");
@@ -45,33 +47,32 @@ test.describe("guest", () => {
     await expect(stage(page)).toHaveAttribute("data-state", /live|fallback/);
     test.skip((await stage(page).getAttribute("data-state")) === "fallback", "no WebGL2 in this browser");
 
-    const hudPx = page.locator(".hud-friend-px .num");
-    const before = await hudPx.textContent();
+    const before = await hudPixels(page);
     const runs = page.waitForResponse((r) => r.url().endsWith("/api/runs") && r.request().method() === "POST", {
       timeout: RUN_TIMEOUT_MS,
     });
     const flings = await playRun(page);
     expect(flings).toBeGreaterThan(10);
-    // The guest run is also sent to the server (visitors board), best-effort.
+    // The guest run is also sent to the server (Visitors board), best-effort.
     expect((await runs).status()).toBeLessThan(500);
 
-    const results = page.getByRole("heading", { name: "RUN OVER" });
-    await expect(results).toBeVisible();
-    await expect(results).toBeFocused();
-    await expect(page.getByText("These were loaner pixels.")).toBeVisible();
-    await expect(page.getByTestId("result-score")).toHaveText(/\d/);
+    // The venue's own results card; the shell credits Bits with a toast.
+    const results = runResults(page);
+    await expect(results).toContainText(/loaner pixels/i);
+    expect(Number((await resultStat(page, "score")).replace(/\D/g, ""))).toBeGreaterThanOrEqual(0);
+    await expect(page.getByRole("status").filter({ hasText: /\+\d+ bits/ })).toBeVisible();
 
-    // Scars land on the loaner's local copy, shown by the HUD, and survive a reload.
-    const after = await hudPx.textContent();
-    const lost = Number(await page.locator(".results-stats .num").nth(2).textContent());
-    if (lost > 0) expect(after).not.toBe(before);
+    // Scars land on the loaner's local copy (the HUD), and survive a reload.
+    const lost = Number(/\d+/.exec(await resultStat(page, "lost"))?.[0]);
+    await expect.poll(async () => (await hudPixels(page)).present).toBe(before.present - lost);
+    const after = await hudPixels(page);
     expect(await noHorizontalOverflow(page)).toBe(true);
 
-    // Play again remounts the venue on the same (scarred) loaner.
-    await page.getByTestId("play-again").click();
-    await expect(page.getByRole("button", { name: "▶ play" })).toBeVisible();
+    // "walk into the sky" exits the venue into the hub.
+    await results.getByRole("button", { name: /walk into the sky/i }).click();
+    await expect(page).toHaveURL(/\/sky$/);
     await page.reload();
-    await expect(page.locator(".hud-friend-px .num")).toHaveText(after ?? "");
+    expect((await hudPixels(page)).present).toBe(after.present);
   });
 
   test("keyboard only: skip link, Play now with Enter, settings reachable", async ({ page, isMobile }) => {
