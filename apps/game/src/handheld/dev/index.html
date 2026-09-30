@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <title>Handheld 128x128</title>
+    <title>Handheld Arcade</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap" rel="stylesheet" />
@@ -11,38 +11,22 @@
       html,
       body {
         margin: 0;
-        min-height: 100%;
-        background-color: #eee;
-        /* The construction grid dots (art bible: allowed on the handheld page). */
-        background-image: radial-gradient(#b0b0b0 1px, transparent 1.5px);
-        background-size: 16px 16px;
-        background-position: 8px 8px;
+        height: 100%;
+        background: #eee;
       }
-      body {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 100vh;
-        padding: 16px;
-        box-sizing: border-box;
-      }
-      .sim-badge {
+      #stage {
         position: fixed;
-        right: 12px;
-        top: 12px;
-        font:
-          700 11px/1 "Silkscreen",
-          ui-monospace,
-          monospace;
-        background: #111;
-        color: #eee;
-        padding: 4px 8px;
-        text-transform: lowercase;
+        inset: 0;
+      }
+      #stage > canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        background: #9fc6e8;
       }
     </style>
   </head>
   <body>
-    <div class="sim-badge">simulated rf · local sim</div>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

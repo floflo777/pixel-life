@@ -2,8 +2,15 @@
  * The handheld's state machine (boot → home → run → results → home) on top of a `VenueHost`. DOM-free: time advances
  * only through `update(dt)` and input arrives through `pad` / `pointer`, so a whole run is testable with the venue-kit
  * test host. It renders into `lcd` at 30 fps (15 fps stepping during slow-mo) and says when a new frame is ready.
+ *
+ * Runs use the shared deterministic sim (`createSim` from `@pl/shared`) with exactly the config the server rebuilds
+ * (arena "meadow", the Friend's effective scars, no gold slots), and report the `encodeInputs` log, so the server can
+ * replay them and they rank on the same boards as the 3D venue, tagged `venueId: "handheld"`.
  */
 import {
+  createSim as sharedCreateSim,
+  encodeInputs as sharedEncodeInputs,
+  SimEvents,
   ECON,
   RUN_TICKS,
   SIM_HZ,
@@ -31,9 +38,12 @@ import type { VenueHost } from "@pl/venue-kit";
 /** Which screen is showing. */
 export type ScreenName = "boot" | "home" | "run" | "results";
 
-/** Venue id the handheld reports runs under: the same board as the 3D Pixel Life venue (GDD §7). */
-export const HANDHELD_RESULT_VENUE = "pixel-life";
-/** Arena the handheld plays (the Ink biome is the in-game proof of this mode, but runs share the default board). */
+/**
+ * Venue id the handheld reports runs under. The server replays every run with the same sim whatever the venue and the
+ * boards are not venue-scoped, so handheld runs rank next to 3D ones; the id only tags where the run was played.
+ */
+export const HANDHELD_VENUE_ID = "handheld";
+/** Arena the handheld plays: the server's default replay arena (`POST /api/runs` without `arena`). */
 export const HANDHELD_ARENA = "meadow";
 /** Render rate and the slow-mo rate. */
 export const LCD_FPS = 30;
@@ -42,17 +52,26 @@ export const SLOWMO_FPS = 15;
 /** Minimum spacing of full-screen inversions (GDD §7: max 1 per 600 ms). */
 export const INVERSE_COOLDOWN_MS = 600;
 
-/** Dependencies of the app; everything has a production default in `mountHandheld`. */
+/** Dependencies of the app. `createSim` / `encodeInputs` default to the shared sim and codec. */
 export interface HandheldAppDeps {
   host: VenueHost;
   /** Wall clock (ms since epoch) for scar regrowth. */
   now: () => number;
-  createSim: HandheldSimFactory;
-  encodeInputs: InputEncoder;
+  /** Sim factory (default: `@pl/shared` `createSim`); tests may wrap it to observe configs. */
+  createSim?: HandheldSimFactory;
+  /** Input-log encoder (default: `@pl/shared` `encodeInputs`, the format the server replays). */
+  encodeInputs?: InputEncoder;
   newRunId: () => string;
   /** Skip the boot animation (dev, tests). */
   skipBoot?: boolean;
 }
+
+/** Top-bar titles for the two ways a run ends. */
+const END_TITLES: Record<number, string> = { [SimEvents.END_TIME]: "TIME UP", [SimEvents.END_CRUMBLE]: "CRUMBLED" };
+/** Wave-phase banners (GDD wave table): drop-in has none. */
+const PHASE_BANNERS: Record<number, string> = { 1: "SNACK TIME", 2: "RUSH!", 3: "FRENZY!", 4: "LAST LIGHT" };
+/** Smash cue per creature kind (0 Nib … 5 Fizz). */
+const SMASH_CUES = ["smash.nib", "smash.pogo", "smash.clank", "smash.snatch", "smash.slurp", "smash.fizz"] as const;
 
 interface RunState {
   sim: HandheldSim;
@@ -69,6 +88,11 @@ interface RunState {
   lastInverseAt: number;
   shakeLeft: number;
   lostBefore: Hex64;
+  /** Creature kind by id (smash events carry only the id). */
+  kinds: Map<number, number>;
+  endTitle: string;
+  /** The Friend has been ready at least once (the drop-in lock is over). */
+  everReady: boolean;
 }
 
 interface ResultsState {
@@ -104,9 +128,23 @@ export class HandheldApp {
   private paused = false;
   /** Buttons pressed since the current screen opened: a release only counts if its press was seen here. */
   private readonly armed = new Set<string>();
+  private readonly createSim: HandheldSimFactory;
+  private readonly encodeInputs: InputEncoder;
+  /** Venue-level mute (the device's own switch), on top of the shell's mute. */
+  muted = false;
+  private exited = false;
 
   constructor(private readonly deps: HandheldAppDeps) {
     this.screen = deps.skipBoot ? "home" : "boot";
+    this.createSim = deps.createSim ?? sharedCreateSim;
+    this.encodeInputs = deps.encodeInputs ?? sharedEncodeInputs;
+  }
+
+  /** Plays a cue unless the shell or the device is muted. */
+  private cue(name: string, volume?: number): void {
+    const audio = this.deps.host.audio;
+    if (this.muted || audio.muted.value) return;
+    audio.play(name, volume === undefined ? undefined : { volume });
   }
 
   /** The Friend as the app sees it (host identity, or a newer scar state it was handed). */
@@ -133,6 +171,7 @@ export class HandheldApp {
       const rf = (lost * ECON.regrowMicroPerPx) / 1_000_000;
       items.push({ id: "regrow", label: "REGROW", sub: `${rf} RF SIM` });
     }
+    items.push({ id: "exit", label: "EXIT", sub: "TO THE SKY" });
     return items;
   }
 
@@ -237,14 +276,28 @@ export class HandheldApp {
     for (const e of events) {
       if (e.type === "down" && e.button === "left") this.menuSel = (this.menuSel + items.length - 1) % items.length;
       if (e.type === "down" && e.button === "right") this.menuSel = (this.menuSel + 1) % items.length;
-      if (e.type === "long" && e.button === "back") this.deps.host.exit("quit");
+      if (e.type === "long" && e.button === "back") this.exit("quit");
       if (this.okReleased(e) && !this.busy) {
         const item = items[this.menuSel];
         if (item?.id === "play") this.startRun(this.deps.host.seeds.free(), "free");
         if (item?.id === "daily") void this.startDaily();
         if (item?.id === "regrow") void this.regrow();
+        if (item?.id === "exit") this.exit("done");
       }
     }
+  }
+
+  /**
+   * Leaves the venue for the hub. A run in progress is abandoned (never reported), exactly like a mid-run quit.
+   * Safe to call more than once; only the first call reaches the host.
+   */
+  exit(reason: "done" | "quit" = "quit"): void {
+    if (this.exited) return;
+    this.exited = true;
+    this.run = null;
+    this.pad.releaseAll(this.time);
+    this.cue("ui.back");
+    this.deps.host.exit(reason);
   }
 
   private async startDaily(): Promise<void> {
@@ -277,7 +330,7 @@ export class HandheldApp {
       const receipt = await this.deps.host.economy.request(action);
       this.scarsOverride = receipt.scars;
       this.say(`HEALED ${popcount(lost)} PX`);
-      this.deps.host.audio.play("grab");
+      this.cue("regrow.sparkle");
     } catch (e) {
       const code = e && typeof e === "object" && "code" in e ? String((e as { code: unknown }).code) : "";
       this.say(code === "cancelled" ? "CANCELLED" : code === "insufficient_funds" ? "NO FUNDS" : "NOT NOW");
@@ -290,7 +343,8 @@ export class HandheldApp {
     const f = this.friend;
     const front = frontMask(f.appearance);
     const lost = homeScars(f, this.deps.now()).lost;
-    const sim = this.deps.createSim({
+    // Exactly the config the server rebuilds for replay (runs/routes.ts): no `gold` slots, meadow arena.
+    const sim = this.createSim({
       seed,
       kind,
       arena: HANDHELD_ARENA,
@@ -311,7 +365,11 @@ export class HandheldApp {
       lastInverseAt: -Infinity,
       shakeLeft: 0,
       lostBefore: lost,
+      kinds: new Map(),
+      endTitle: "TIME UP",
+      everReady: false,
     };
+    this.cue("run.start");
     this.results = null;
     this.go("run");
   }
@@ -325,7 +383,7 @@ export class HandheldApp {
       ang: Math.round(ang) & 4095,
       pow: Math.max(0, Math.min(1023, Math.round(pow))),
     });
-    this.deps.host.audio.play("fling");
+    this.cue("fling.release", 0.6 + (pow / 1023) * 0.6);
   }
 
   private handleRun(events: readonly PadEvent[]): void {
@@ -362,7 +420,13 @@ export class HandheldApp {
       steps++;
     }
     if (steps === 0) return;
+    const wasReady = r.everReady;
     r.view = r.sim.view();
+    if (!wasReady && r.view.friend.ready) {
+      // The drop-in lock is over: the first fling is allowed now.
+      r.everReady = true;
+      fx.callouts = [...fx.callouts, { x: 64, y: 30, text: "GO!", age: 0 }];
+    }
     for (const e of r.sim.drainEvents()) this.onEvent(r, e.type, e.a ?? 0, e.b ?? 0, e.x ?? 0, e.z ?? 0);
     // Age the juice by simulated time, in render frames.
     const age = (steps / SIM_HZ) * LCD_FPS;
@@ -377,45 +441,91 @@ export class HandheldApp {
   private onEvent(r: RunState, type: string, a: number, b: number, x: number, z: number): void {
     const fx = r.fx;
     const s = toScreen(x, z);
-    const audio = this.deps.host.audio;
+    const callout = (text: string, dy: number, age = 0) =>
+      (fx.callouts = [...fx.callouts, { x: s.sx, y: s.sy + dy, text, age }]);
     switch (type) {
+      case "spawn":
+        r.kinds.set(a, b);
+        break;
       case "hit":
         fx.impacts = [...fx.impacts, { x: s.sx, y: s.sy - 8, age: 0 }];
+        if (a < 0) this.cue(b === SimEvents.HIT_TOOTH_BOUNCE ? "gulp.tooth" : "bonk.rim");
+        else this.cue("bonk.shell", 0.7);
         break;
-      case "smash":
-        audio.play("pop");
+      case "smash": {
+        const kind = r.kinds.get(a) ?? 0;
+        r.kinds.delete(a);
+        this.cue(SMASH_CUES[kind] ?? "smash.nib");
+        // Only player-caused pops (b > 0) score, stop time and flash.
+        if (b <= 0) break;
         r.hitStop = 100;
-        if (b > 0) {
-          fx.lastGain = b;
-          fx.gainAge = 0;
-          fx.callouts = [...fx.callouts, { x: s.sx, y: s.sy - 22, text: `+${b}`, age: 0 }];
-        }
+        fx.lastGain = b;
+        fx.gainAge = 0;
+        callout(`+${b}`, -22);
         if (this.time - r.lastInverseAt >= INVERSE_COOLDOWN_MS) {
           r.lastInverseAt = this.time;
           fx.inverse = { x: s.sx, y: s.sy - 8 };
           fx.bonk = { x: s.sx + 10, y: Math.min(106, s.sy + 4), left: 15 };
         }
         break;
+      }
+      case "combo":
+        if (a >= 2) callout(`COMBO x${a}`, -32, 4);
+        break;
       case "bite":
-        audio.play("bite");
+        this.cue("bite");
         r.shakeLeft = 6;
         fx.callouts = [...fx.callouts, { x: s.sx + 22, y: s.sy - 20, text: `-${b}PX`, age: 0 }];
         break;
       case "pixelBack":
-        audio.play("grab");
-        fx.callouts = [...fx.callouts, { x: s.sx, y: s.sy - 6, text: b === 1 ? "CLUTCH" : "+1", age: 12 }];
+        this.cue(b === 1 ? "pixel.clutch" : "pixel.sweep");
+        callout(b === 1 ? "CLUTCH" : "+1", -6, 12);
+        break;
+      case "pixelLost":
+        this.cue("pixel.lost", 0.6);
+        break;
+      case "steal":
+        this.cue("snatch.cackle");
+        callout("SNATCHED!", -24);
+        break;
+      case "explode":
+        this.cue("smash.fizz");
+        fx.impacts = [...fx.impacts, { x: s.sx, y: s.sy - 4, age: 0 }];
+        break;
+      case "glance":
+        this.cue("gold.glance");
+        break;
+      case "crumb":
+        this.cue("pixel.sweep", 0.5);
+        callout(`+${a}`, -8, 6);
         break;
       case "gulp":
-        audio.play("gulp");
+        if (a === SimEvents.GULP_EV_RUMBLE) {
+          this.cue("gulp.rumble");
+          r.shakeLeft = 10;
+          fx.callouts = [...fx.callouts, { x: 64, y: 22, text: "GULP!", age: 0 }];
+        } else if (a === SimEvents.GULP_EV_BITE) {
+          this.cue("gulp.bite");
+          r.shakeLeft = 8;
+        } else if (a === SimEvents.GULP_EV_TOOTH_HIT) this.cue("gulp.tooth");
+        else if (a === SimEvents.GULP_EV_BURP) this.cue("gulp.burp");
+        else if (a === SimEvents.GULP_EV_INHALE) this.cue("gulp.inhale");
         break;
+      case "phase": {
+        const banner = PHASE_BANNERS[a];
+        if (banner) fx.callouts = [...fx.callouts, { x: 64, y: 30, text: banner, age: 0 }];
+        break;
+      }
       case "edge":
-        if (a === 0) {
+        if (a === SimEvents.EDGE_FALL) {
+          this.cue("ringout");
           r.slowmo = 500;
-          fx.callouts = [...fx.callouts, { x: s.sx, y: s.sy - 10, text: "EDGE!", age: 0 }];
-        }
+          callout("EDGE!", -10);
+        } else if (a === SimEvents.EDGE_SAVED) callout("SAVED!", -10);
         break;
       case "end":
-        audio.play("time-up");
+        r.endTitle = END_TITLES[a] ?? "TIME UP";
+        this.cue("run.end");
         break;
     }
   }
@@ -435,15 +545,24 @@ export class HandheldApp {
     const r = res.run;
     try {
       const ack = await this.deps.host.reportResult({
-        venueId: HANDHELD_RESULT_VENUE,
+        venueId: HANDHELD_VENUE_ID,
         runId: r.runId,
         seed: r.seed,
         kind: r.kind,
-        inputs: this.deps.encodeInputs(r.inputs),
+        inputs: this.encodeInputs(r.inputs),
         claimed: r.sim.summary(),
       });
       if (ack.scars) this.scarsOverride = ack.scars;
-      res.report = ack.applied ? "saved" : ack.reason === "guest" ? "guest" : "practice";
+      res.report =
+        ack.verified === "mismatch"
+          ? "unverified"
+          : ack.applied
+            ? "saved"
+            : ack.reason === "guest"
+              ? "guest"
+              : ack.reason === "unverified"
+                ? "error"
+                : "practice";
     } catch {
       res.report = "error";
     }
@@ -500,8 +619,8 @@ export class HandheldApp {
           menu,
           selected: Math.min(this.menuSel, menu.length - 1),
           frame: this.frame,
-          dx: Math.round(Math.sin(this.time / 1700) * 2),
-          dy: Math.floor(this.time / 500) % 2,
+          dx: this.deps.host.reducedMotion ? 0 : Math.round(Math.sin(this.time / 1700) * 2),
+          dy: this.deps.host.reducedMotion ? 0 : Math.floor(this.time / 500) % 2,
           toast: this.toast?.text ?? null,
           loaned: f.loaned,
           fmtShort: shortDuration,
@@ -547,6 +666,8 @@ export class HandheldApp {
           lost: popcount(res.fresh),
           report: res.report,
           frame: this.frame,
+          title: res.run.endTitle,
+          kind: res.run.kind,
         });
         return;
       }

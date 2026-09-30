@@ -30,8 +30,13 @@ const CSS = `
 export interface HandheldDevice {
   readonly root: HTMLElement;
   readonly canvas: HTMLCanvasElement;
-  /** Wires the on-screen buttons to `inst` and fits the screen to `maxScreenPx`; returns an unbind function. */
-  bind(inst: HandheldInstance, maxScreenPx?: number): () => void;
+  /**
+   * Wires the on-screen buttons to `inst` and fits the screen (integer upscale, at most `maxScreenPx`) into the box
+   * `box()` returns (default: the window), refitting on window resize; returns an unbind function.
+   */
+  bind(inst: HandheldInstance, maxScreenPx?: number, box?: () => { w: number; h: number }): () => void;
+  /** Refits the screen now (e.g. from a `ResizeObserver` on the box). */
+  fit(): void;
 }
 
 /** Builds the device frame inside `parent`. `label` is the small top-left caption. */
@@ -60,10 +65,12 @@ export function createHandheldDevice(parent: HTMLElement, label = "pixel life"):
   const canvas = root.querySelector("canvas");
   if (!canvas) throw new Error("device canvas missing");
 
+  let fitNow: () => void = () => undefined;
   return {
     root,
     canvas,
-    bind(inst, maxScreenPx = 512) {
+    fit: () => fitNow(),
+    bind(inst, maxScreenPx = 512, box = () => ({ w: window.innerWidth, h: window.innerHeight })) {
       const offs: (() => void)[] = [];
       for (const el of root.querySelectorAll<HTMLButtonElement>(".plhh-btn")) {
         const b = el.dataset.b as Button;
@@ -94,13 +101,17 @@ export function createHandheldDevice(parent: HTMLElement, label = "pixel life"):
           el.removeEventListener("click", click);
         });
       }
+      // Room left around the screen for the bezel (sides) and the caption, pad and hint (top/bottom).
       const fit = () => {
-        const avail = Math.min(maxScreenPx, window.innerWidth - 60, window.innerHeight - 210);
+        const b = box();
+        const avail = Math.min(maxScreenPx, b.w - 60, b.h - 210);
         inst.resize(avail, avail);
       };
+      fitNow = fit;
       fit();
       window.addEventListener("resize", fit);
       offs.push(() => window.removeEventListener("resize", fit));
+      offs.push(() => (fitNow = () => undefined));
       return () => offs.splice(0).forEach((f) => f());
     },
   };

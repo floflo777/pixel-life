@@ -358,17 +358,24 @@ export function drawRun(lcd: Lcd, v: HandheldView, fx: RunFx, totalTicks: number
   }
 
   if (body && v.friend.ringout === 0) {
-    const g = toScreen(body.x, body.z);
-    // A flung Friend arcs: its lift follows its speed, so it lands as it slows (frame 3's mid-air Friend).
-    const hop = body.flying ? Math.round(Math.min(20, Math.hypot(body.vx, body.vz) * 0.4)) : 0;
+    // A Mitosis Friend that has split draws each half from its own pixels (`half`); otherwise body 0 owns them all.
+    const split = v.friend.bodies.length > 1 && v.friend.half !== undefined;
     const blinkOff = v.friend.invulnerable && Math.floor(fx.frame / 2) % 2 === 1;
-    items.push({
-      y: g.sy,
-      draw: () => {
-        lcd.fillEllipse(g.sx, g.sy, 12, 3, 1, 0.5);
-        if (body.flying) speedLines(lcd, g.sx, g.sy - 14 - hop, body.vx, body.vz);
-        if (!blinkOff) drawFriend(lcd, runPixelAt(v.friend.pixels), g.sx - 16, g.sy - 30 - hop, { scale: 2 });
-      },
+    v.friend.bodies.forEach((b, bi) => {
+      const g = toScreen(b.x, b.z);
+      // A flung Friend arcs: its lift follows its speed, so it lands as it slows (frame 3's mid-air Friend).
+      const hop = b.flying ? Math.round(Math.min(20, Math.hypot(b.vx, b.vz) * 0.4)) : 0;
+      const all = runPixelAt(v.friend.pixels);
+      const half = v.friend.half;
+      const pixelAt = split && half ? (id: number) => ((half[id] ?? 0) === bi ? all(id) : "empty") : all;
+      items.push({
+        y: g.sy,
+        draw: () => {
+          lcd.fillEllipse(g.sx, g.sy, 12, 3, 1, 0.5);
+          if (b.flying) speedLines(lcd, g.sx, g.sy - 14 - hop, b.vx, b.vz);
+          if (!blinkOff) drawFriend(lcd, pixelAt, g.sx - 16, g.sy - 30 - hop, { scale: 2 });
+        },
+      });
     });
   } else if (body) {
     // Off the edge: a shrinking dotted ring where it fell.
@@ -390,6 +397,12 @@ export function drawRun(lcd: Lcd, v: HandheldView, fx: RunFx, totalTicks: number
       },
     });
   }
+  for (const c of v.crumbs ?? []) {
+    const s = toScreen(c.x, c.z);
+    if (c.left < 60 && Math.floor(fx.frame / 3) % 2 === 1) continue;
+    items.push({ y: s.sy, draw: () => crumb(lcd, s.sx, s.sy - 2) });
+  }
+  if (v.gulp) drawGulp(lcd, v.gulp, v.arena.a, v.arena.b, fx.frame, items);
   items.sort((a, b) => a.y - b.y);
   for (const it of items) it.draw();
 
@@ -457,6 +470,83 @@ export function drawRun(lcd: Lcd, v: HandheldView, fx: RunFx, totalTicks: number
   if (!fx.reducedMotion) lcd.shift(fx.shake.dx, fx.shake.dy, 0);
 }
 
+/** A Gulp star crumb: a 5 px plus with a paper centre. */
+export function crumb(lcd: Lcd, x: number, y: number): void {
+  lcd.rect(x - 2, y, 5, 1, 1);
+  lcd.rect(x, y - 2, 1, 5, 1);
+  lcd.set(x, y, 0);
+}
+
+/**
+ * Old Gulp in 1-bit: the telegraph is a dotted mouth ring; its bite is two dashed cut lines from the centre to the rim
+ * with the wedge between them hatched; teeth are 2× fangs (a lit tooth blinks inverted, a hit tooth is hollow).
+ * Items are pushed into the depth-sorted list so teeth overlap correctly with the Friend and creatures.
+ */
+export function drawGulp(
+  lcd: Lcd,
+  g: NonNullable<HandheldView["gulp"]>,
+  a: number,
+  b: number,
+  frame: number,
+  items: { y: number; draw: () => void }[],
+): void {
+  if (g.phase === 0 || g.phase >= 5) return;
+  /** Rim point of the island along world heading `ang` (0..4095). */
+  const rim = (ang: number) => {
+    const t = (ang / 4096) * Math.PI * 2;
+    const c = Math.cos(t);
+    const sn = Math.sin(t);
+    const k = 1 / Math.sqrt((c / a) ** 2 + (sn / b) ** 2);
+    return toScreen(c * k, sn * k);
+  };
+  if (g.shadow) {
+    const m = toScreen(g.mouthX, g.mouthZ);
+    lcd.ellipse(m.sx, m.sy, 10, 5, 1, true);
+    if (Math.floor(frame / 4) % 2 === 0) lcd.ellipse(m.sx, m.sy, 6, 3, 1, true);
+  }
+  if (g.wedgeOn) {
+    // The bitten-out wedge reads as a hole: 50 % dither over the ground inside it, cut lines on its two edges.
+    const { rx, ry } = islandRadii(a, b);
+    const half = (g.wedgeHalf / 4096) * Math.PI * 2;
+    const dir = (g.wedgeDir / 4096) * Math.PI * 2;
+    for (let y = -ry; y <= ry; y++)
+      for (let x = -rx; x <= rx; x++) {
+        if (!inEllipse(x, y, rx, ry)) continue;
+        const ang = Math.atan2(y / PZ_PER_U, x / PX_PER_U);
+        const d = Math.abs(((ang - dir + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        if (d > half) continue;
+        const sx = ISLAND_CX + x;
+        const sy = ISLAND_CY + y;
+        lcd.set(sx, sy, ditherOn(sx, sy, 0.5) ? 1 : 0);
+      }
+    const c = toScreen(0, 0);
+    for (const side of [-1, 1]) {
+      const e = rim(g.wedgeDir + side * g.wedgeHalf);
+      lcd.line(c.sx, c.sy, e.sx, e.sy, 1);
+    }
+  }
+  for (const t of g.teeth) {
+    const s = toScreen(t.x, t.z);
+    items.push({
+      y: s.sy,
+      draw: () => {
+        const inv = t.lit && Math.floor(frame / 3) % 2 === 0;
+        // A 7 × 8 fang: filled triangle, hollow once hit.
+        for (let j = 0; j < 8; j++) {
+          const half = Math.floor((8 - j) / 2);
+          for (let i = -half; i <= half; i++) {
+            const edge = i === -half || i === half || j === 0;
+            const on = t.hit ? edge : true;
+            if (on) lcd.set(s.sx + i, s.sy - 8 + j, inv ? 0 : 1);
+            else lcd.set(s.sx + i, s.sy - 8 + j, 0);
+          }
+        }
+        if (inv) lcd.frame(s.sx - 5, s.sy - 10, 11, 11, 1);
+      },
+    });
+  }
+}
+
 /** Four L-shaped corner brackets around a 2×2 loose pixel at (x, y), `d` px out. */
 export function brackets(lcd: Lcd, x: number, y: number, d: number): void {
   for (const [dx, dy] of [
@@ -490,7 +580,7 @@ export function speedLines(lcd: Lcd, x: number, y: number, vx: number, vz: numbe
 // Results
 
 /** Where the result report stands (drives the status line and retry). */
-export type ReportState = "sending" | "saved" | "guest" | "practice" | "error";
+export type ReportState = "sending" | "saved" | "guest" | "practice" | "unverified" | "error";
 
 /** Results screen model. */
 export interface ResultsModel {
@@ -504,13 +594,17 @@ export interface ResultsModel {
   lost: number;
   report: ReportState;
   frame: number;
+  /** Top-bar title: "TIME UP" (default) or "CRUMBLED" when the Friend ran out of pixels. */
+  title?: string;
+  /** Run kind shown top right ("DAILY" runs rank on the shared daily board). */
+  kind?: "free" | "daily";
 }
 
 /** Results: big score, the Friend at 2× with this run's new scars blinking, run counters, report status, next steps. */
 export function drawResults(lcd: Lcd, m: ResultsModel): void {
   lcd.clear(0);
   lcd.dither(0, 9, LCD_SIZE, 110, 0.12);
-  topBar(lcd, "TIME UP", "▣ HANDHELD");
+  topBar(lcd, m.title ?? "TIME UP", m.kind === "daily" ? "▣ DAILY" : "▣ FREE");
   lcd.rect(4, 13, 120, 24, 0);
   lcd.frame(4, 13, 120, 24, 1);
   lcd.text("SCORE", 8, 16, 1);
@@ -548,6 +642,7 @@ export function drawResults(lcd: Lcd, m: ResultsModel): void {
     saved: "SAVED",
     guest: "GUEST RUN",
     practice: "PRACTICE",
+    unverified: "UNVERIFIED",
     error: "OFFLINE",
   };
   lcd.text(status[m.report], 60, 78, 1);

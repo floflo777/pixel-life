@@ -1,11 +1,11 @@
 /**
- * Handheld playground: the device frame + `mountHandheld` on the venue-kit test host (economy SIMULATED).
+ * Handheld Arcade playground: `createHandheldVenue` mounted on the venue-kit test host (economy SIMULATED), overlaid on a
+ * stand-in for the shared stage's container, exactly as the shell mounts it over The Sky.
  * Query: `?skipBoot` · `?heal=3600` (scar-healing time-lapse factor) · `?reduced` · `?guest` · `?token=65042`.
  *   npx vite --config apps/game/src/handheld/dev/vite.config.ts
  */
 import { createTestVenueHost } from "@pl/venue-kit";
-import { createHandheldDevice } from "../device.js";
-import { mountHandheld } from "../mount.js";
+import { createHandheldVenue, type HandheldVenueInstance } from "../mount.js";
 import { devFriend } from "./fixture.js";
 
 const q = new URLSearchParams(location.search);
@@ -19,13 +19,15 @@ const harness = createTestVenueHost({
 });
 const heal = Number(q.get("heal") ?? "1");
 
-const device = createHandheldDevice(document.body, guest ? "pixel life · guest" : "pixel life");
-const inst = await mountHandheld(device.canvas, harness.host, {
-  now: () => harness.now,
-  skipBoot: q.has("skipBoot"),
-  keyTarget: window,
-});
-device.bind(inst);
+// The shell's stage: a full-viewport box with the (here blank) 3D canvas the venue overlays.
+const stage = document.createElement("div");
+stage.id = "stage";
+const stageCanvas = document.createElement("canvas");
+stage.appendChild(stageCanvas);
+document.body.appendChild(stage);
+Object.assign(harness.host.stage, { renderer: { domElement: stageCanvas } });
+const venue = createHandheldVenue({ now: () => harness.now, skipBoot: q.has("skipBoot") });
+const inst = (await venue.mount(harness.host)) as HandheldVenueInstance;
 
 let last = performance.now();
 const loop = (t: number) => {
