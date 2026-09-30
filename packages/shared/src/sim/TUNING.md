@@ -65,15 +65,31 @@ Units: **u** = one sprite pixel = one voxel; **ticks** at 60 Hz (`sec(s)` = `rou
 
 ## Run, scoring, combos (GDD §2.8, §2.9)
 
-| Constant                                                            | Value                    | Unit   | Source / note                                                                                   |
-| ------------------------------------------------------------------- | ------------------------ | ------ | ----------------------------------------------------------------------------------------------- |
-| `WAVE1_START` / `WAVE2_START` / `FRENZY_START` / `LAST_LIGHT_START` | 150 / 1200 / 2400 / 3300 | ticks  | GDD §2.8 phases (2.5 / 20 / 40 / 55 s).                                                         |
-| `PTS_SURVIVAL`                                                      | 300                      | pts    | GDD §2.9 `round(300 × kept / start)`, safety stitches count as kept.                            |
-| `PTS_FLAWLESS`                                                      | 500                      | pts    | GDD §2.9, no pixel lost this run.                                                               |
-| `COMBO_CAP`                                                         | 8                        | ×      | GDD §2.9 combo = kills in the fling, cap ×8.                                                    |
-| `CHAIN_BASE` / `CHAIN_STEP` / `CHAIN_CAP`                           | 10 / 1 / 20              | tenths | GDD §2.9 chain ×1.0, +0.1 per killing fling, cap ×2.0; a bite, a ring-out or a whiff resets it. |
+| Constant                                                            | Value                    | Unit   | Source / note                                                                                                                 |
+| ------------------------------------------------------------------- | ------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `WAVE1_START` / `WAVE2_START` / `FRENZY_START` / `LAST_LIGHT_START` | 150 / 1200 / 2400 / 3300 | ticks  | GDD §2.8 phases (2.5 / 20 / 40 / 55 s).                                                                                       |
+| `PTS_SURVIVAL`                                                      | 300                      | pts    | GDD §2.9 `round(300 × kept / start)`, safety stitches count as kept.                                                          |
+| `PTS_FLAWLESS`                                                      | 500                      | pts    | GDD §2.9, no pixel lost this run.                                                                                             |
+| `COMBO_CAP`                                                         | 8                        | ×      | GDD §2.9 combo = kills in the fling, cap ×8.                                                                                  |
+| `CHAIN_BASE` / `CHAIN_STEP` / `CHAIN_CAP`                           | 10 / 3 / 50              | tenths | **Tuned** from GDD §2.9 ×1.0 / +0.1 / ×2.0 (balance pass): the chain is the skill multiplier. A bite or a ring-out resets it. |
+| `CHAIN_WHIFF`                                                       | 6                        | tenths | **Deviation.** A whiff costs −0.6 (floor ×1.0) instead of a reset: see below.                                                 |
+| `WHIFF_GRACE`                                                       | 30                       | ticks  | **Deviation.** A no-pop fling is a whiff only if no grab-back / crumb follows within 0.5 s of it stopping FLYING.             |
 
 Pop points = `round(value × combo × chain × (1.5 in Last Light) × (2 for a Pogo air pop))`, computed in integers.
+
+**Balance pass (chain rules, deviations from GDD §2.9).** With the GDD chain (+0.1, cap ×2.0, any whiff resets) the
+bots' scores barely separated by skill (novice 2 027 / average 2 497 / expert 2 712): creature supply caps pops at
+≈ 50–60 per run for everyone, and the chain never got past ≈ ×1.2 for anyone. The chain is now what skill buys:
+
+- +0.3 per fling with ≥ 1 pop, cap ×5.0. The HUD's 10 chain pips (`chainPips` in apps/game) assume +0.1 / ×2.0 and
+  need rescaling to ×1.0 → ×5.0 (0.4 per pip); `chainLabel` already prints any value.
+- A bite or a ring-out resets it (unchanged): not getting bitten is the core skill.
+- A whiff (no pop) costs −0.6 instead of a reset, and a fling that grabs back a pixel, sweeps a crumb or knocks a tooth
+  is not a whiff (nor is one followed by a grab-back or crumb within `WHIFF_GRACE`): sweeping is play, not a miss.
+- **Perfect sweep:** when every pixel knocked off by one bite is grabbed back, half of the chain that bite broke comes
+  back (`floor((chainBefore + 10) / 2)`, `chain` event). No bonus points: a +50 bonus tested first paid novices ≈ 1 000
+  points per run for being bitten; restoring the whole chain let novices (bitten, and sweeping, 8× more) keep pace.
+- "GULP BURPED" stays +500: with the chain at ×5 in Frenzy, the teeth race is already worth ≈ 850 per expert run.
 
 ## Spawning (GDD §3.9)
 
@@ -98,7 +114,7 @@ Slurp 4.0/0/30/3.0/2/0 (≤ 1), Fizz 1.8/12/20/2.0/1/3. Sizes from the GDD sprit
 | `NIB_BOW`, `NIB_RANGE`, `NIB_HOP_BACK`, `NIB_HOP_TIME`, `NIB_WAIT`, `NIB_SPACING`                      | 27 t, 2 u, 3 u, 12 t, 72 t, 2 u          | GDD §3.2 bow 0.45 s, 2 u, hop back 3 u, wait 1.2 s, 2 u apart.                                                                                                                                        |
 | `POGO_CROUCH`, `POGO_HOP`, `POGO_HOP_LEN`, `POGO_APEX`, `POGO_RANGE`, `POGO_HOPS_MIN`, `POGO_REST`     | 18 t, 36 t, 9.6 u, 3 u, 2.5 u, 3, 60 t   | GDD §3.3 crouch 0.3 s, 0.6 s hops at 16 u/s, 3–4 hops then a pounce within 2.5 u. Rest 1 s is ours.                                                                                                   |
 | `CLANK_JAW`, `CLANK_RANGE`, `CLANK_TURN`, `CLANK_RECOVER`                                              | 36 t, 2.5 u, 17/tick, 60 t               | GDD §3.4 jaw 0.6 s, 2.5 u, 90°/s. Recovery 1 s is ours.                                                                                                                                               |
-| `CLANK_PLATE_COS`, `CLANK_PLATE_RESTITUTION`, `CLANK_FRONT_HP`, `PTS_SHELL_CRACK`                      | 0.5, 0.8, 2400, 40                       | GDD §3.4 plate < 60° from facing, bounce 0.8 and −1 px unless m·v ≥ 2400 ("SHELL CRACK" +40).                                                                                                         |
+| `CLANK_PLATE_COS`, `CLANK_PLATE_RESTITUTION`, `CLANK_FRONT_HP`, `PTS_SHELL_CRACK`                      | 0.5, 0.8, 2400, 40                       | GDD §3.4 plate < 60° from facing, bounce 0.8 and −1 px unless m·v ≥ `smashThreshold(2400, m)` ("SHELL CRACK" +40).                                                                                    |
 | `SNATCH_SWOOP_TELEGRAPH`, `SNATCH_SWOOP_SPEED`, `SNATCH_HEIGHT`, `SNATCH_PICK_RADIUS`, `SNATCH_LEAVE`  | 24 t, 18 u/s, 4 u, 1.5 u, 480 t          | GDD §3.5 swoop line 0.4 s, hover 4 u, leaves after 8 s idle. Swoop speed and pick radius are ours.                                                                                                    |
 | `SLURP_WAKE`, `SLURP_RANGE`, `SLURP_PERIOD`, `SLURP_TONGUE`, `SLURP_PUFF`, `SLURP_KNOCK`, `SLURP_SULK` | 14 u, 10 u, 180 t, 15 t, 42 t, 4 u, 90 t | GDD §3.6 exactly.                                                                                                                                                                                     |
 | `SLURP_YANK_SPEED`                                                                                     | 19 u/s                                   | GDD §3.6 "pulls it 6 u": 19 u/s slides ≈ 6 u under damping.                                                                                                                                           |
@@ -115,10 +131,16 @@ Slurp 4.0/0/30/3.0/2/0 (≤ 1), Fizz 1.8/12/20/2.0/1/3. Sizes from the GDD sprit
 | `GULP_WEDGE_INNER`                                                                     | 0.4 × rim                      | **Deviation.** The GDD's 90° sector has its apex at the island centre; bitten out, it made the centre a knife edge and ≈ 90 % of all bot ring-outs happened there. Gulp now bites only the outer 60 % of the sector (≈ 21 % of the island instead of 25 %), leaving a new rim that faces the centre — "Gulp rests its chin on the new rim". |
 | `TOOTH_SPREAD`                                                                         | 0.6 × half-angle               | Teeth stand on that new rim at the bisector and ±0.6 of the half-angle.                                                                                                                                                                                                                                                                     |
 | `TOOTH_RADIUS`                                                                         | 3 u                            | Ours (2.5 tested: too hard to hit after deflections).                                                                                                                                                                                                                                                                                       |
-| `TOOTH_HP`                                                                             | 1800 m·v                       | GDD §3.8. A lit-tooth hit rebounds like a bumper (otherwise every hit flew into the gap).                                                                                                                                                                                                                                                   |
+| `TOOTH_HP`                                                                             | 1800 m·v                       | GDD §3.8 at m = 70; a body of m pixels needs `smashThreshold(1800, m)` (see below). A lit-tooth hit rebounds like a bumper (otherwise every hit flew into the gap).                                                                                                                                                                         |
 | `MOUTH_RIM_SHARE`, `MOUTH_RADIUS`, `INHALE_ACCEL`                                      | 0.7 × rim, 3 u, 22 u/s²        | GDD §3.8 suction 22 u/s² toward the mouth; reaching it = eaten / ring-out.                                                                                                                                                                                                                                                                  |
 | `PTS_TOOTH`, `PTS_CRUMB`, `PTS_BURP`, `CRUMBS_PER_TOOTH`, `CRUMB_TTL`, `CRUMB_SCATTER` | 100, 20, 500, 6, 180 t, 5 u    | GDD §3.8: +100 per tooth, 6 star crumbs worth +20 each (swept like pixels, 3 s), burp +500.                                                                                                                                                                                                                                                 |
 | `GULP_MOODS`                                                                           | table                          | Hungry (weight 2): 90° wedge, teeth lit 3 s, inhale 2 s; Sleepy (1): 54° (15 %), 4 s, inhale only if no tooth hit; Grumpy (1): 90°, 2.2 s, inhale 3 s. GDD §3.8. Mood, jitter and tooth order come from Gulp's own PRNG stream (seed only).                                                                                                 |
+
+**Mass-scaled smash thresholds (balance pass, deviation).** `smashThreshold(hp, m) = hp · √(m / M_REF)` replaces the
+flat m·v ≥ 1 800 (tooth) and ≥ 2 400 (Clank plate). Launch speed scales as √(M_REF / m) inside the mass-factor clamp,
+so the scaled bar asks every Friend of 38–109 px for the same fling power; the flat bar locked the light families out
+(Hoverer 42 px and Hollow 44 px never burped Gulp and sat 30 % / 18 % under the median score). A 96-px Colossus now
+needs 2 108 instead of 1 800, a 42-px Hoverer 1 394.
 
 ## Family traits (GDD §4) — `traits.ts` maps familyId → these
 
@@ -143,23 +165,33 @@ never multiplied. `ISLAND_VERTICES` = 64 polygon vertices; `BUMPER_RADIUS` = 2.2
 
 ## Balance (bot sim, GDD §9.7)
 
-`npx tsx packages/shared/src/sim/scripts/balance.ts 60` — 60 seeded runs × 9 families (one real Friend per family from
-`friends.json`) × 3 profiles on Meadow; deterministic. Profiles: novice ±30° aim / 400 ms reaction, average ±12° /
-250 ms, expert ±4° / 150 ms (GDD), each plus a drag-aim time of 500 / 300 / 150 ms; novices never steer-sweep.
+`npx tsx packages/shared/src/sim/scripts/balance.ts 60` — 60 seeded runs × 9 families × 3 profiles on Meadow (one real
+Friend per family from `friends.json`); deterministic. It also prints a score breakdown per profile and per-family
+tables for the average and expert profiles. Profiles: novice ±30° aim / 400 ms reaction, average ±12° / 250 ms, expert
+±4° / 150 ms (GDD), each plus a drag-aim time of 500 / 300 / 150 ms; novices never steer-sweep.
+
+The average and expert profiles use the shot planner (`bot-planner.ts`): every candidate direction is walked tick by
+tick with the sim's own damping — pops in order (combo index × value, ×0.9 speed per pop), Clank plates it can or
+cannot crack, lit teeth and the rebound off them, loose pixels and crumbs it sweeps, bumpers, the void and a safe
+landing — and the best safe plan is flung (the noisy version is re-checked, as a player watches the drag arrow). The
+average bot aims from where its Friend is (so it waits until it has nearly stopped); the expert leads its own drift and
+the creatures' motion over its reaction time, holds a weak shot for up to 2.5 s while nothing threatens so creatures
+bunch up (combo goal 3), and stages head-on runs at Gulp's teeth. The novice keeps the simple greedy bot.
 
 | Metric (Meadow)         | Novice (target) | Average (target) | Expert (target) |
 | ----------------------- | --------------- | ---------------- | --------------- |
-| px lost persisted / run | 8.6 (9)         | 5.6 (5)          | 4.8 (1–2)       |
-| grab-back rate          | 72 % (45 %)     | 71 % (70 %)      | 84 % (92 %)     |
-| Crumble rate            | 2.6 % (< 8 %)   | 0.2 % (< 2 %)    | 0.2 % (0 %)     |
-| Gulp burped             | 3 % (10 %)      | 23 % (45 %)      | 41 % (90 %)     |
-| score (mean)            | 2 027 (1 200)   | 2 497 (3 000)    | 2 712 (6 500)   |
-| ring-outs / run         | 1.08            | 1.14             | 0.91            |
+| px lost persisted / run | 8.6 (9)         | 5.3 (5)          | 0.5 (1–2)       |
+| grab-back rate          | 71 % (45 %)     | 73 % (70 %)      | 93 % (92 %)     |
+| Crumble rate            | 2.6 % (< 8 %)   | 0.2 % (< 2 %)    | 0 % (0 %)       |
+| Gulp burped             | 3.5 % (10 %)    | 27 % (45 %)      | 77 % (90 %)     |
+| score (mean)            | 2 339 (1 200)   | 3 519 (3 000)    | 6 785 (6 500)   |
+| ring-outs / run         | 1.02            | 0.26             | 0.08            |
 
-The pixel economy (average ≈ 5 px/run at ≈ 70 % grab-back, tokenomics' "median 5 px per run") is on target.
-Known gaps, not fixable by constants alone: the bots barely separate on score (creature supply caps pops at ≈ 50–55
-per run for everyone; the GDD's 6 500 expert score needs long combos the bot does not plan), experts still lose ≈ 3 px
-per run to ring-outs on failed tooth attempts, and light families (Hoverer 42 px, Hollow 44 px) cannot reach the
-m·v thresholds of teeth (1 800) or Clank plates (2 400), so they sit 18–30 % below the median score (GDD target
-±8 %). Proposed fix for design: scale `TOOTH_HP` / `CLANK_FRONT_HP` with √(m / M_REF), or cap them at the
-lightest Friend's reachable momentum.
+Family median score spread (average profile): −8.3 % … +6.4 % for eight families (Hoverer −1.9 %, Hollow +6.4 %,
+Cellular −7.5 %), Family (Huddle) +15.7 %. Mass matters: 70 %-body median +1.2 % vs full body (target ±5 %).
+
+Known gaps: the novice still scores ≈ 2× its target — a slow Friend gets surrounded, so even ±30° flings pop 48 per run
+and land 3+ combos; closing it needs a weaker novice bot or lower creature values, both design calls. The expert loses
+fewer pixels than the GDD expects (0.5 vs 1–2) and burps 77 % (90 %): big Friends (Colossus r = 7) can rarely hit the
+middle tooth without touching a neighbour. Family's Huddle (magnet ×2 + drift) sits +16 % above the median (×1.5
+tested: still +11 %); left at the GDD value.

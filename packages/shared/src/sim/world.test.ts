@@ -136,18 +136,93 @@ describe("loose pixels (GDD §2.5)", () => {
   });
 });
 
+describe("mass-scaled smash thresholds (balance pass)", () => {
+  it("a tooth or a plate asks the same launch power of every mass inside the launch clamp", () => {
+    expect(T.smashThreshold(T.TOOTH_HP, T.M_REF)).toBe(T.TOOTH_HP);
+    // Speed needed at impact, as a share of the full-power launch speed: mass-independent.
+    const share = (m: number, hp: number): number => T.smashThreshold(hp, m) / m / launchSpeed(1023, m);
+    for (const hp of [T.TOOTH_HP, T.CLANK_FRONT_HP])
+      for (const m of [42, 44, 55, 70, 82, 96, 105]) expect(share(m, hp)).toBeCloseTo(share(T.M_REF, hp), 9);
+    // The light families (Hoverer ≈ 42 px) need less raw momentum than the GDD's flat 1 800.
+    expect(T.smashThreshold(T.TOOTH_HP, 42)).toBeLessThan(0.8 * T.TOOTH_HP);
+  });
+});
+
 describe("scoring (GDD §2.9)", () => {
-  it("combo = kills in one fling, chain +0.1 per killing fling, whiff resets", () => {
+  it("combo = kills in one fling; chain +0.3 per killing fling, a whiff costs 0.6 (floor ×1.0)", () => {
     const w = readyWorld();
     for (const x of [8, 13, 18]) w.addCreature(T.NIB, x, 0, 0);
     run(w, 25, [fling(w, 0, 1023)]);
     expect(eventsOf(w, "smash").map((e) => e.b)).toEqual([10, 20, 30]);
     expect(eventsOf(w, "combo").map((e) => e.a)).toEqual([2, 3]);
     run(w, 120);
-    expect(w.chain).toBe(11);
+    expect(w.chain).toBe(T.CHAIN_BASE + T.CHAIN_STEP);
+    w.creatures = [];
+    w.chain = 25;
     run(w, 30, [fling(w, 2048, 600)]);
     run(w, 120);
-    expect(w.chain).toBe(10);
+    expect(w.chain).toBe(25 - T.CHAIN_WHIFF);
+    w.creatures = [];
+    run(w, 30, [fling(w, 0, 600)]);
+    run(w, 120);
+    w.creatures = [];
+    run(w, 30, [fling(w, 2048, 600)]);
+    run(w, 120);
+    expect(w.chain).toBe(T.CHAIN_BASE);
+  });
+
+  it("a fling that only sweeps a loose pixel back holds the chain instead of whiffing", () => {
+    const w = readyWorld();
+    w.creatures = [];
+    w.biteFriend(0, 1, 1, 0, -1, 0);
+    const d = w.debris[0];
+    if (!d) throw new Error("no loose pixel");
+    // Park the cube 12 u in front of the Friend (beyond the Family drift), then slide over it once it can be picked up.
+    const b = w.body(0);
+    d.x = b.x + 12;
+    d.z = b.z;
+    d.y = 0;
+    d.vx = d.vy = d.vz = 0;
+    run(w, T.PICKUP_DELAY + 2);
+    w.creatures = [];
+    expect(w.recovered).toBe(0);
+    w.chain = 25;
+    run(w, 30, [fling(w, 0, 700)]);
+    run(w, T.WHIFF_GRACE + 60);
+    expect(w.recovered).toBe(1);
+    expect(w.chain).toBe(25);
+  });
+
+  it("a perfect sweep (every pixel of the bite back) wins back half the chain the bite broke", () => {
+    const sweep = (grabAll: boolean): World => {
+      const w = readyWorld();
+      w.creatures = [];
+      w.chain = 30;
+      w.biteFriend(0, 2, 1, 0, -1, 0);
+      expect(w.chain).toBe(T.CHAIN_BASE);
+      // Cubes rest out of reach; the ones to sweep are then dropped onto the body.
+      const b = w.body(0);
+      w.debris.forEach((d, i) => {
+        d.x = b.x + 10 + 3 * i;
+        d.z = b.z;
+        d.y = 0;
+        d.vx = d.vy = d.vz = 0;
+      });
+      run(w, T.PICKUP_DELAY + 2);
+      w.creatures = [];
+      for (const d of grabAll ? w.debris : w.debris.slice(0, 1)) {
+        d.x = b.x;
+        d.z = b.z;
+      }
+      run(w, 1);
+      return w;
+    };
+    const all = sweep(true);
+    expect(all.recovered).toBe(2);
+    expect(all.chain).toBe((30 + T.CHAIN_BASE) / 2);
+    const half = sweep(false);
+    expect(half.recovered).toBe(1);
+    expect(half.chain).toBe(T.CHAIN_BASE);
   });
 
   it("the run ends at 60 s with the survival and flawless bonuses", () => {

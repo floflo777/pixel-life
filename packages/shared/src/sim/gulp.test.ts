@@ -4,7 +4,7 @@ import { angleOf } from "./fixed-math.js";
 import { GULP_DONE, GULP_SHADOW, GULP_TEETH_OUT } from "./gulp.js";
 import { blockConfig, eventsOf, fling } from "./testkit.js";
 import * as T from "./tuning.js";
-import { World } from "./world.js";
+import { launchSpeed, slideSpeedAt, World } from "./world.js";
 
 function worldAt(tick: number, seed = 5): World {
   const w = new World(blockConfig({ seed }));
@@ -49,6 +49,33 @@ describe("Old Gulp (GDD §3.8)", () => {
     expect(eventsOf(w, "gulp").some((e) => e.a === GULP_EV_TOOTH_HIT)).toBe(true);
     expect(w.score - before).toBeGreaterThanOrEqual(T.PTS_TOOTH);
     expect(w.ringouts).toBe(0);
+  });
+
+  it("a light Friend cracks a tooth at the mass-scaled threshold, and the hit holds the chain", () => {
+    // 6 × 7 = 42 px, the Hoverer's mass: raw m·v at this speed is below the flat 1 800, the scaled bar is met.
+    const w = new World(blockConfig({ seed: 5, w: 6, h: 7 }));
+    w.invulnUntil = 1e9;
+    while (w.tick < T.GULP_TEETH + 2) {
+      w.step([]);
+      w.creatures = [];
+    }
+    const lit = w.gulp.teeth[w.gulp.lit];
+    if (!lit) throw new Error("no lit tooth");
+    const b = w.body(0);
+    const m = b.shape.count;
+    expect(m).toBe(42);
+    const l = Math.sqrt(lit.x * lit.x + lit.z * lit.z);
+    b.x = lit.x - (lit.x / l) * 12;
+    b.z = lit.z - (lit.z / l) * 12;
+    const gap = 12 - b.shape.r - T.TOOTH_RADIUS;
+    let pow = T.MIN_POW;
+    while (slideSpeedAt(launchSpeed(pow, m), gap, 1) * m < T.smashThreshold(T.TOOTH_HP, m) * 1.05) pow += 4;
+    expect(slideSpeedAt(launchSpeed(pow, m), gap, 1) * m).toBeLessThan(T.TOOTH_HP);
+    w.chain = 25;
+    w.step([fling(w, angleOf(lit.x - b.x, lit.z - b.z), pow)]);
+    for (let i = 0; i < 20 + T.WHIFF_GRACE; i++) w.step([]);
+    expect(eventsOf(w, "gulp").some((e) => e.a === GULP_EV_TOOTH_HIT)).toBe(true);
+    expect(w.chain).toBe(25);
   });
 
   it("mood, wedge jitter and tooth order depend only on the seed", () => {

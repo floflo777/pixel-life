@@ -47,6 +47,13 @@ interface Agg {
   burped: number;
   ringouts: number;
   smashed: number;
+  popPts: number;
+  grabPts: number;
+  gulpPts: number;
+  bestCombo: number;
+  combo3: number;
+  teeth: number;
+  gulpRingouts: number;
 }
 
 function agg(runs: BotRun[]): Agg {
@@ -60,6 +67,13 @@ function agg(runs: BotRun[]): Agg {
     burped: 0,
     ringouts: 0,
     smashed: 0,
+    popPts: 0,
+    grabPts: 0,
+    gulpPts: 0,
+    bestCombo: 0,
+    combo3: 0,
+    teeth: 0,
+    gulpRingouts: 0,
   };
   for (const r of runs) {
     a.scores.push(r.summary.score);
@@ -70,6 +84,13 @@ function agg(runs: BotRun[]): Agg {
     a.burped += r.burped ? 1 : 0;
     a.ringouts += r.ringouts;
     a.smashed += r.summary.smashed;
+    a.popPts += r.popPts;
+    a.grabPts += r.grabPts;
+    a.gulpPts += r.gulpPts;
+    a.bestCombo += r.bestCombo;
+    a.combo3 += r.bestCombo >= 3 ? 1 : 0;
+    a.teeth += r.teeth;
+    a.gulpRingouts += r.gulpRingouts;
   }
   a.scores.sort((x, y) => x - y);
   return a;
@@ -93,6 +114,25 @@ function row(label: string, a: Agg): string {
     (a.smashed / a.n).toFixed(1).padStart(6),
   ].join(" | ");
 }
+
+/** Where the points come from, per run: pops (combo × chain), grab-backs, Gulp, the rest (survival, flawless, …). */
+function breakdown(label: string, a: Agg): string {
+  const total = mean(a.scores);
+  const per = (x: number): string => String(Math.round(x / a.n)).padStart(6);
+  return [
+    label.padEnd(10),
+    per(a.popPts),
+    per(a.grabPts),
+    per(a.gulpPts),
+    String(Math.round(total - (a.popPts + a.grabPts + a.gulpPts) / a.n)).padStart(6),
+    (a.bestCombo / a.n).toFixed(2).padStart(6),
+    pct(a.combo3 / a.n).padStart(8),
+    (a.teeth / a.n).toFixed(2).padStart(6),
+    (a.gulpRingouts / a.n).toFixed(2).padStart(6),
+  ].join(" | ");
+}
+
+const HEADER2 = "profile    |  pops  |  grab  |  gulp  |  rest  | best×  | combo≥3 | teeth | gulpRO";
 
 const HEADER = "profile    |   avg  |   med  | lost/run| px off | grab-back| crumble |  burped | rings | pops";
 
@@ -118,10 +158,19 @@ for (const p of Object.values(BOT_PROFILES)) {
   print(row(p.name, agg(r.all)));
 }
 print("");
+print("score breakdown per run (rest = survival + flawless + shell cracks + parries − ring-outs):");
+print(HEADER2);
+for (const [name, r] of results) print(breakdown(name, agg(r.all)));
+print("");
 print("per family (average profile):");
 print(HEADER.replace("profile   ", "family    "));
 const avg = results.get("average");
 if (avg) for (const [fam, runs] of avg.perFamily) print(row(fam, agg(runs)));
+const exp = results.get("expert");
+print("");
+print("per family (expert profile):");
+print(HEADER.replace("profile   ", "family    "));
+if (exp) for (const [fam, runs] of exp.perFamily) print(row(fam, agg(runs)));
 const medians = avg ? [...avg.perFamily.values()].map((r) => median(agg(r).scores)) : [];
 const mm = mean(medians);
 print("");

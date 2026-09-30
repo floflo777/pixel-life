@@ -727,7 +727,7 @@ function hitCreature(w: World, bi: number, c: Creature): void {
       const nx = l > 0 ? dx / l : 1;
       const nz = l > 0 ? dz / l : 0;
       if (cosA(c.facing) * nx + sinA(c.facing) * nz > T.CLANK_PLATE_COS) {
-        if (b.shape.count * sp >= T.CLANK_FRONT_HP) {
+        if (b.shape.count * sp >= T.smashThreshold(T.CLANK_FRONT_HP, b.shape.count)) {
           killCreature(w, c, true, false);
           w.score += T.PTS_SHELL_CRACK;
           killMomentum(w, bi, c);
