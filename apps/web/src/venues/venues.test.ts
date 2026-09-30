@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { EMPTY_MASK } from "@pl/shared";
+import { EMPTY_MASK, type RunAck } from "@pl/shared";
 import type { VenueResult } from "@pl/venue-kit";
 import { headingOf, realCreatureFactory, tookHit, type SimCreature } from "./creatures.js";
-import { runRequest } from "./host.js";
+import { creditedAck, runRequest } from "./host.js";
 import { runToast } from "./PlayScreen.js";
 import { NATIVE_VENUES, nativeVenue, PIXEL_LIFE, SDK_VENUES, venueIds } from "./registry.js";
 import { pickOutcome } from "./VenueScreen.js";
@@ -107,12 +107,33 @@ describe("run reporting", () => {
     expect(full).not.toHaveProperty("day");
   });
 
-  it("says what a run earned and any verification problem", () => {
-    const run = { result, ack: {} as never, problem: null };
-    expect(runToast(run, { bits: 12, newStamps: [] })).toBe("+12 bits");
-    expect(runToast({ ...run, problem: "We couldn't verify this run." }, { bits: 0, newStamps: ["a", "b"] })).toBe(
-      "+0 bits · new stamps! · We couldn't verify this run.",
-    );
+  const serverAck: RunAck = { runId: "r1", verified: "pending", applied: true, scars: null, bits: 60 };
+
+  it("says what a run earned (the ack's Bits) and any verification problem", () => {
+    const run = { result, ack: { ...serverAck, bits: 12 }, problem: null, newStamps: [] };
+    expect(runToast(run)).toBe("+12 bits");
+    expect(
+      runToast({
+        ...run,
+        ack: { ...serverAck, bits: 0 },
+        problem: "We couldn't verify this run.",
+        newStamps: ["a", "b"],
+      }),
+    ).toBe("+0 bits · new stamps! · We couldn't verify this run.");
+  });
+
+  it("gives the card and the toast one Bits figure: the server's for owners, the device tally's for guests (#32)", () => {
+    // Owner: the server credited 60 (first run of the day); a local estimate of 10 must not leak in.
+    const owner = creditedAck(serverAck, "owner", 10);
+    expect(owner.bits).toBe(60);
+    expect(runToast({ result, ack: owner, problem: null, newStamps: ["first-run"] })).toBe("+60 bits · new stamp!");
+    // Owner whose submission failed or was not credited: nothing was earned, say 0.
+    const noBits: RunAck = { runId: "r1", verified: "pending", applied: true, scars: null };
+    expect(creditedAck(noBits, "owner", 10).bits).toBe(0);
+    // Guest: the server earns nothing, the local book's credit is the figure.
+    const guest = creditedAck({ ...noBits, applied: false, reason: "guest" }, "guest", 25);
+    expect(guest).toMatchObject({ bits: 25, reason: "guest" });
+    expect(runToast({ result, ack: guest, problem: null, newStamps: [] })).toBe("+25 bits");
   });
 });
 

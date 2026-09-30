@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { runSummarySchema } from "../../protocol.js";
 import type { SimInput } from "../../sim-types.js";
 import { decodeInputs, encodeInputs } from "../../sim/codec.js";
+import { fullTests, HEAVY_TIMEOUT_MS } from "../../sim/testkit.js";
 import { chooseShot } from "./bot.js";
 import { cellIndex, cellKey, generateCourse, TEMPLATE_COUNT, templateSpec, buildHole } from "./course.js";
 import { createPuttSim, puttScore, replayPutt, type PuttEvent, type PuttSim } from "./sim.js";
@@ -94,7 +95,15 @@ describe("pixel putt course", () => {
   });
 });
 
-describe("pixel putt sim", () => {
+/**
+ * Daily seeds the search bot plays to the end. Locally all eight; on CI (without PL_FULL_TESTS=1) two seeds whose
+ * courses between them use every template (the test checks that coverage, so a tuning change that breaks it fails
+ * loudly: pick new seeds then).
+ */
+const ROUND_SEEDS = fullTests() ? [1, 2, 3, 4, 5, 6, 7, 8] : [2, 7];
+
+// Bot rounds are CPU-heavy (a search per shot): give the whole block an explicit timeout for slow CI runners.
+describe("pixel putt sim", { timeout: HEAVY_TIMEOUT_MS }, () => {
   it("replays a bot round bit-identically (live, replayPutt and through the binary codec)", () => {
     const { sim, inputs } = botRound(11);
     expect(sim.done).toBe(true);
@@ -130,7 +139,7 @@ describe("pixel putt sim", () => {
 
   it("finishes every hole under the cap for a range of daily seeds (all templates are playable)", () => {
     const seen = new Set<string>();
-    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    for (const seed of ROUND_SEEDS) {
       const { sim, events } = botRound(seed);
       for (const h of sim.course.holes) seen.add(h.name);
       const s = sim.summary();

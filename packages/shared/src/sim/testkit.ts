@@ -68,6 +68,17 @@ export function env(name: string): string | undefined {
   return (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env[name];
 }
 
+/**
+ * Whether heavy deterministic tests run their full sets. Always locally; on CI (`CI` set, as on GitHub runners, which
+ * are several times slower) they run a representative subset unless `PL_FULL_TESTS=1` asks for everything.
+ */
+export function fullTests(): boolean {
+  return env("PL_FULL_TESTS") === "1" || !env("CI");
+}
+
+/** Explicit timeout (ms) for heavy deterministic tests: well above their slowest CI runtime, so only a hang fails. */
+export const HEAVY_TIMEOUT_MS = 60_000;
+
 /** Writes a repo-relative text file from a Node test (regeneration paths only; run vitest from the repo root). */
 export async function writeRepoFile(path: string, text: string): Promise<void> {
   const fs = (await import(/* @vite-ignore */ ["node", "fs"].join(":"))) as {

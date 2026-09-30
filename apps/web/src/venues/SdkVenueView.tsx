@@ -1,7 +1,8 @@
 /**
  * The venue manager's SDK path (architecture §1.3 / §1b.2): a stock FriendSDK game mounted unmodified through the
  * patched `ConnectedGameHost`, fed the shell's own wallet session, selected Friend and read client. `previewClient` is
- * the `ServerLedgerClient` so Seed Packs persist in the server ledger. The SDK's fresh eligibility gate still runs
+ * the `ServerLedgerClient` so Seed Packs persist in the server ledger, and `previewLabel` says so ({@link BOOTH_LEDGER_LABEL})
+ * instead of the SDK's "Local preview". The SDK's fresh eligibility gate still runs
  * before the child mounts; `revision` (wallet revision + identity revision) closes the bridge on any identity change.
  * This module (and the SDK runtime + CSS) loads only when a booth opens.
  */
@@ -18,6 +19,12 @@ import { errorMessage } from "../api/client.js";
 import { useStore } from "../lib/store.js";
 import { ROBINHOOD_CHAIN_ID, type OwnerFlow } from "../identity/owner-flow.js";
 import { Button, ErrorState, Loading } from "../ui/index.js";
+
+/**
+ * The SDK frame's mode label for our booths (#33): the RF is simulated, but packs and rewards live in the server ledger
+ * and persist, so the stock "Local preview" would be false.
+ */
+export const BOOTH_LEDGER_LABEL = "SIMULATED RF · saved on the server";
 
 function Booth({ venue, flow }: { venue: SdkFrameVenue; flow: OwnerFlow }) {
   const s = useServices();
@@ -69,6 +76,7 @@ function Booth({ venue, flow }: { venue: SdkFrameVenue; flow: OwnerFlow }) {
         publicClient={flow.publicClient}
         revision={wallet.revision + revision}
         previewClient={previewClient}
+        previewLabel={BOOTH_LEDGER_LABEL}
       />
     </div>
   );

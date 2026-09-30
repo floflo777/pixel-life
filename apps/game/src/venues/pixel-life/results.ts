@@ -68,7 +68,10 @@ export interface ResultsModel {
   readonly smashed: number;
   readonly bestCombo: number;
   readonly gulpBurped: boolean;
-  /** Estimated Bits (the server credits them after its daily cap). */
+  /**
+   * Estimated Bits, for reference only: the card shows the host's ack (`RunAck.bits`, see {@link bitsLabel}) so it
+   * matches the shell's toast and balance.
+   */
   readonly bits: number;
   /** Pixels the owner can regrow right now (empty for guests and when nothing was lost). */
   readonly regrowPixels: Hex64;
@@ -119,6 +122,16 @@ export function buildResults(r: ResultsInput): ResultsModel {
       bestCombo: r.bestCombo,
     },
   };
+}
+
+/**
+ * The results card's "bits" value: "…" until the host acknowledges the run, then the Bits the host credited
+ * (`RunAck.bits`, the same figure the shell toasts). "—" when the host credits none, "not saved" if reporting failed.
+ */
+export function bitsLabel(ack: RunAck | null, failed: boolean): string {
+  if (failed) return "not saved";
+  if (!ack) return "…";
+  return typeof ack.bits === "number" ? `+${ack.bits}` : "—";
 }
 
 /** One line about what happened to the scars, from the server's ack (null = still submitting). */

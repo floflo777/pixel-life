@@ -1,13 +1,12 @@
 /**
  * `/play[?venue=<id>][&mode=daily]`: the venue manager's native path. Ensures someone is playing (guest with a loaner
  * if nobody is) and mounts the chosen native venue (default: Loose Pixels) with a `VenueHost`. The venue owns its run
- * and results screens; the shell credits Bits and stamps when a run is reported and walks back into The Sky when the
- * venue exits. First-run coachmarks sit over the venue (the `.play` wrapper is `position: relative`).
+ * and results screens; the host credits Bits and stamps when a run is reported (the ack carries the one Bits figure,
+ * #32), the shell toasts it and walks back into The Sky when the venue exits. First-run coachmarks sit over the venue (the `.play` wrapper is `position: relative`).
  *
  * The venue is keyed by who plays (mode + token id), the venue, the mode and an explicit restart counter, never by the
  * identity revision: a scar or balance update after a run must not remount a venue that is showing its results.
  */
-import { popcount } from "@pl/shared";
 import type { VenueIdentity } from "@pl/venue-kit";
 import { useEffect, useMemo, useState } from "react";
 import type { PageProps } from "../app/routes.js";
@@ -22,10 +21,13 @@ import type { ReportedRun } from "./host.js";
 import { NativeVenueView } from "./NativeVenueView.js";
 import { nativeVenue, type VenueMode } from "./registry.js";
 
-/** Toast text for a reported run (Bits, new stamps, and any verification problem, stated plainly). */
-export function runToast(run: ReportedRun, reward: { bits: number; newStamps: readonly string[] }): string {
-  const parts = [`+${reward.bits} bits`];
-  if (reward.newStamps.length) parts.push(`new stamp${reward.newStamps.length > 1 ? "s" : ""}!`);
+/**
+ * Toast text for a reported run (Bits, new stamps, and any verification problem, stated plainly). The Bits are the
+ * ack's, the same number the venue's results card shows.
+ */
+export function runToast(run: ReportedRun): string {
+  const parts = [`+${run.ack.bits ?? 0} bits`];
+  if (run.newStamps.length) parts.push(`new stamp${run.newStamps.length > 1 ? "s" : ""}!`);
   if (run.problem) parts.push(run.problem);
   return parts.join(" · ");
 }
@@ -74,7 +76,6 @@ export default function PlayScreen({ search }: PageProps) {
     );
   if (!venueIdentity || identity.mode === "none") return <Loading label="your Friend is on its way" />;
 
-  const progressKey = identity.mode === "owner" ? identity.view.appearance.tokenId : "guest";
   return (
     <div className="play" data-testid="play" data-venue={entry.manifest.id}>
       <NativeVenueView
@@ -82,14 +83,7 @@ export default function PlayScreen({ search }: PageProps) {
         entry={entry}
         mode={mode}
         identity={venueIdentity}
-        onReported={(run) => {
-          const reward = s.progress.recordRun(
-            progressKey,
-            { score: run.result.claimed.score, lost: popcount(run.result.claimed.lostDelta) },
-            Date.now(),
-          );
-          s.toast(runToast(run, reward), run.problem ? "bad" : "good");
-        }}
+        onReported={(run) => s.toast(runToast(run), run.problem ? "bad" : "good")}
         onExit={() => navigate("/sky")}
       />
       {/* First-run hints, fed by the venue's `pl:coach` window events; never blocks the game. */}

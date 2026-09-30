@@ -25,4 +25,7 @@ This repository is built by a small team of agents coordinated by a lead. These 
 
 - Unit tests next to the code (`*.test.ts`), Vitest. Property tests (fast-check) for invariants (economy splits, bitmaps).
 - Determinism: sim changes must keep the golden-hash corpus green, or update it deliberately in the same PR with a reason.
+- Heavy deterministic tests (golden corpus replay, Pixel Putt bot rounds) run their full sets locally but a
+  representative subset on CI (`CI` set); `PL_FULL_TESTS=1 npm test` forces the full sets anywhere. Run it after sim or
+  tuning changes.
 - End-to-end: Playwright under `tests/e2e`.
