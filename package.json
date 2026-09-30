@@ -12,7 +12,8 @@
     "packages/*",
     "apps/*",
     "tools/*",
-    "workers/*"
+    "workers/*",
+    "tests/*"
   ],
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
