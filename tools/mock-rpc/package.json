@@ -1,0 +1,22 @@
+{
+  "name": "@pl/mock-rpc",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Typed JSON-RPC server emulating Robinhood Chain 4663 (Generations, families registry, Multicall3) for dev and e2e.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "pl-mock-rpc": "./src/cli.ts"
+  },
+  "scripts": {
+    "start": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@rarefriends/friendsdk": "file:../../vendor/rarefriends-friendsdk-0.1.4.tgz",
+    "viem": "2.56.3"
+  },
+  "devDependencies": {}
+}
