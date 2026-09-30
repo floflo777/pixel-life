@@ -14,6 +14,7 @@ import {
   RF_DECOR_TIERS_MICRO,
 } from "@pl/shared";
 import type { ReactNode } from "react";
+import { RfFlowExplainer, WhyRealEconomy } from "../onboarding/index.js";
 import {
   Badge,
   Card,
@@ -149,6 +150,9 @@ export function EconomyPage({ mode, stats, onRetryStats, now: fixedNow }: Econom
           )}
         </p>
       </Card>
+
+      <WhyRealEconomy mode={mode} />
+      <RfFlowExplainer mode={mode} />
 
       <Card title="every price" aria-label="every price">
         <div className="pl-table-wrap">

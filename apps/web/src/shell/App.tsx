@@ -6,7 +6,8 @@ import { Component, type ErrorInfo, lazy, type ReactNode, Suspense, useEffect, u
 import { type PageModule, type RouteDef, loaderOf, resolveRoute } from "../app/routes.js";
 import { useServices } from "../app/services.js";
 import { syncMe } from "../identity/bootstrap.js";
-import { useLocation } from "../lib/router.js";
+import { navigate, useLocation } from "../lib/router.js";
+import { FirstVisit } from "../onboarding/index.js";
 import { useStore } from "../lib/store.js";
 import { reducedMotionOf } from "../settings/settings.js";
 import { Button, ErrorState, Loading } from "../ui/index.js";
@@ -124,6 +125,11 @@ export function App() {
           </Suspense>
         </ScreenBoundary>
       </main>
+      <FirstVisit
+        onPlay={() => navigate("/play")}
+        you={identity.mode === "none" ? null : identity.view}
+        mode={identity.mode === "owner" ? identity.economy : "sim"}
+      />
       <ConfirmHost />
       <Toasts />
     </>

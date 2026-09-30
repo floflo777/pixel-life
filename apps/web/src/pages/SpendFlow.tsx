@@ -46,6 +46,7 @@ import {
   SplitBar,
   useNow,
 } from "../ui/index.js";
+import { RfFlowExplainer } from "../onboarding/index.js";
 import { quoteParts } from "./economy.js";
 
 /** Props shared by {@link RegrowFlow} and {@link MendFlow}. */
@@ -271,6 +272,7 @@ function SpendFlow({
               {px} px × {formatRf(unit)} = {formatRf(q.totalMicro)}
             </p>
             <SplitBar parts={quoteParts(q)} label="where every RF goes" />
+            <RfFlowExplainer only={kind} input={{ pixels: px, targetName: `#${tokenId}` }} mode={q.mode} title={null} />
             <dl className="pl-dl">
               {kind === "mend" && (
                 <>
