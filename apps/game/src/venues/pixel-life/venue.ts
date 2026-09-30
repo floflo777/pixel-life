@@ -102,7 +102,7 @@ export const MANIFEST: VenueManifest = {
 /** Options when building the venue (the shell passes none; dev pages and tests use them). */
 export interface LoosePixelsOptions {
   /** The sim implementation; defaults to the real `@pl/shared` sim (the one the server replays). */
-  readonly sim?: SimModule;
+  readonly sim?: SimModule | undefined;
   /** Creature renderer (the creatures module); placeholder voxel sprites otherwise. */
   readonly creatureFactory?: CreatureFactory;
   readonly arena?: string;
@@ -168,8 +168,8 @@ function runIdOf(): string {
   return `run-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e9).toString(36)}`;
 }
 
-/** Builds the venue around a sim implementation. */
-export function createLoosePixelsVenue(opts: LoosePixelsOptions = {}): NativeVenue<GameStage> {
+/** Builds the venue (pass `{}` for the real `@pl/shared` sim and creatures; options exist for hosts, dev pages, tests). */
+export function createLoosePixelsVenue(opts: LoosePixelsOptions): NativeVenue<GameStage> {
   return {
     manifest: MANIFEST,
     mount: async (host) => mountVenue(host, opts),
