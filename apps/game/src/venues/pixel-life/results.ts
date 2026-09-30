@@ -147,12 +147,18 @@ export function scarNote(model: ResultsModel, ack: RunAck | null, failed: boolea
 }
 
 /**
- * The replay line under a daily result: the server re-runs the input log through the same sim (`replay`) and only
- * then counts it. Null for free runs.
+ * The replay line under a daily result or a Fling Belt trial: the server re-runs the input log through the same sim
+ * (`replay`) and only then ranks / grades it. Null for plain free runs.
  */
-export function replayNote(kind: RunKind, day: string | undefined, ack: RunAck | null, failed: boolean): string | null {
-  if (kind !== "daily") return null;
-  const head = `daily${day ? ` ${day}` : ""}`;
+export function replayNote(
+  kind: RunKind,
+  day: string | undefined,
+  ack: RunAck | null,
+  failed: boolean,
+  beltTrial?: string,
+): string | null {
+  if (kind !== "daily" && !beltTrial) return null;
+  const head = beltTrial ? `belt trial ${beltTrial}` : `daily${day ? ` ${day}` : ""}`;
   if (failed) return `${head} · not submitted`;
   if (!ack || ack.verified === "pending") return `${head} · server replay pending…`;
   return ack.verified === "ok" ? `${head} · replay verified ✓` : `${head} · replay mismatch: not ranked`;

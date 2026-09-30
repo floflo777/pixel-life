@@ -15,6 +15,7 @@ import {
   type Hex64,
   type RunAck,
   type RunKind,
+  beltTrialSeed,
   BOT_PROFILES,
   createBot,
   SimEvents as EV,
@@ -105,7 +106,12 @@ export interface LoosePixelsOptions {
   /** Creature renderer (the creatures module); placeholder voxel sprites otherwise. */
   readonly creatureFactory?: CreatureFactory;
   readonly arena?: string;
-  /** Skip the start card and begin a run of this kind right away. */
+  /**
+   * A Fling Belt trial the host wants played (belt id): the run uses the fixed `beltTrialSeed(id)` everyone shares and
+   * is reported with `beltTrial` so the server can grade it.
+   */
+  readonly beltTrial?: string;
+  /** Skip the start card and begin a run of this kind right away (a belt trial when `beltTrial` is set). */
   readonly autoStart?: RunKind;
   /** Accessibility: one-switch controls (auto-rotating aim, oscillating power). */
   readonly oneSwitch?: boolean;
@@ -122,7 +128,7 @@ export interface LoosePixelsDebug {
   readonly state: () => string;
   readonly view: () => FullSimView | null;
   readonly results: () => ResultsModel | null;
-  readonly start: (kind: RunKind) => Promise<void>;
+  readonly start: (kind: RunKind, beltTrial?: string) => Promise<void>;
   /** Fires a fling now (angle 0..4095, power 0..1). */
   readonly fling: (ang: number, p: number) => void;
   readonly shareCanvas: () => HTMLCanvasElement | null;
@@ -240,6 +246,10 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   let sim: Sim | null = null;
   let cfg: SimConfig | null = null;
   let daily: DailySeed | null = null;
+  /** Belt id of the current run when it is a Fling Belt trial. */
+  let trial: string | null = null;
+  /** Wall-clock start of the current run (reported with its start scars so the server can replay from them). */
+  let startedAt = 0;
   let prev: FullSimView | null = null;
   let cur: FullSimView | null = null;
   let log = new InputLog();
@@ -780,12 +790,17 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   window.addEventListener("blur", onBlur);
 
   // ── Run lifecycle ─────────────────────────────────────────────────────────────────────────────────────────────────
-  const startRun = async (kind: RunKind): Promise<void> => {
+  const startRun = async (kind: RunKind, belt: string | null = null): Promise<void> => {
     if (state === "gone") return;
     hud.closeModal();
     let seed: number;
     daily = null;
-    if (kind === "daily") {
+    trial = belt;
+    startedAt = Date.now();
+    if (belt) {
+      kind = "free";
+      seed = beltTrialSeed(belt);
+    } else if (kind === "daily") {
       try {
         daily = await host.seeds.daily();
         seed = daily.seed;
@@ -864,6 +879,9 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       kind: runCfg.kind,
       inputs: simModule.encodeInputs(inputs),
       claimed: summary,
+      startLost: runCfg.friend.lost,
+      startedAt,
+      ...(trial ? { beltTrial: trial } : {}),
     });
     // Let the end slow-mo play (0.5× for 500 ms), then iris to results.
     setTimeout(() => {
@@ -912,9 +930,10 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     const note = document.createElement("p");
     note.textContent = scarNote(model, null, false);
     card.append(note);
+    const runTrial = trial;
     const replayLine = document.createElement("p");
     const setReplay = (ack: RunAck | null, failed: boolean): void => {
-      const text = replayNote(model.share.kind, model.share.day, ack, failed);
+      const text = replayNote(model.share.kind, model.share.day, ack, failed, runTrial ?? undefined);
       replayLine.textContent = text ?? "";
       replayLine.hidden = text === null;
     };
@@ -922,7 +941,13 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     card.append(replayLine);
     const btns = document.createElement("div");
     card.append(btns);
-    hud.button(btns, "play again", () => void startRun(cfg?.kind ?? "free"), true);
+    const again = trial;
+    hud.button(
+      btns,
+      again ? "try the trial again" : "play again",
+      () => void startRun(cfg?.kind ?? "free", again),
+      true,
+    );
     hud.button(btns, "share", () => void share(model));
     let regrowBtn: HTMLButtonElement | null = null;
     let quote: EconomyQuote | null = null;
@@ -1023,8 +1048,17 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       p3.textContent = `#${appearance.tokenId} is on loan: its scars reset at 00:00 utc.`;
       card.append(p3);
     }
-    hud.button(card, "▶ play", () => void startRun("free"), true);
-    hud.button(card, "daily run", () => void startRun("daily"));
+    const belt = opts.beltTrial;
+    if (belt) {
+      const p4 = document.createElement("p");
+      p4.textContent = `belt trial: ${belt} · same seed for everyone.`;
+      card.append(p4);
+      hud.button(card, "▶ start trial", () => void startRun("free", belt), true);
+      hud.button(card, "free run", () => void startRun("free"));
+    } else {
+      hud.button(card, "▶ play", () => void startRun("free"), true);
+      hud.button(card, "daily run", () => void startRun("daily"));
+    }
   };
 
   // ── Loops ─────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -1145,7 +1179,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     hud.frame(t);
   });
 
-  if (opts.autoStart) await startRun(opts.autoStart);
+  if (opts.autoStart) await startRun(opts.autoStart, opts.beltTrial ?? null);
   else showStart();
 
   const instance: LoosePixelsInstance = {
@@ -1190,7 +1224,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       state: () => state,
       view: () => cur,
       results: () => results,
-      start: (kind) => startRun(kind),
+      start: (kind, belt) => startRun(kind, belt ?? null),
       fling: (ang, p) => fire(ang, p),
       shareCanvas: () => {
         if (!results) return null;

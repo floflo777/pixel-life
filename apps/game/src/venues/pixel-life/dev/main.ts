@@ -2,7 +2,7 @@
  * Loose Pixels dev page: mounts the venue on a real stage with an in-memory host (venue-kit test host rules: sim economy,
  * guest/owner identity, local seeds) and the `@pl/audio` engine. Query params:
  * `owner=1` (own Friend, regrow CTA), `token=<id>` (fixture Friend), `auto=free|daily` (skip the start card),
- * `oneswitch=1`, `taptarget=1`, `reduced=1`, `noflash=1`, `quality=low|medium|high`, `seed=<n>`, `mute=1`.
+ * `oneswitch=1`, `taptarget=1`, `belt=<id>` (Fling Belt trial), `reduced=1`, `noflash=1`, `quality=low|medium|high`, `seed=<n>`, `mute=1`.
  */
 import { AudioEngine, CUES, type CueName } from "@pl/audio";
 import { type FriendView, type RunKind } from "@pl/shared";
@@ -103,6 +103,7 @@ const venue = createLoosePixelsVenue({
   ...(auto ? { autoStart: auto } : {}),
   oneSwitch: flag("oneswitch"),
   tapTarget: flag("taptarget"),
+  ...(q.get("belt") ? { beltTrial: q.get("belt") ?? "" } : {}),
   noFlashes: flag("noflash"),
 });
 const instance = (await venue.mount(host)) as LoosePixelsInstance;

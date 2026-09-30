@@ -77,4 +77,7 @@ describe("replayNote", () => {
     expect(replayNote("daily", undefined, ack("mismatch"), false)).toBe("daily · replay mismatch: not ranked");
     expect(replayNote("daily", undefined, null, true)).toBe("daily · not submitted");
   });
+  it("labels belt trials", () => {
+    expect(replayNote("free", undefined, ack("ok"), false, "lime")).toBe("belt trial lime · replay verified ✓");
+  });
 });
