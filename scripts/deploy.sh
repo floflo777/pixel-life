@@ -12,7 +12,7 @@
 #   SSH_HOST=ailog  REMOTE_ROOT=/home/ubuntu/pixel-life  ORIGIN_IP=51.254.203.108
 #   ORIGIN_HOST=rf-origin.app.ailog.fr   (target: rf-origin.ailog.fr, proxied, once the token has DNS:Edit; see README)
 #   DNS_MODE=auto|cloudflare|skip         (cloudflare = create the proxied A record via API, fail if not permitted)
-#   APP_URL=https://pixel-life.florent-g.workers.dev
+#   APP_URL=https://loose-pixels.florent-g.workers.dev
 #   CF_ENV_FILE=<file exporting CLOUDFLARE_API_TOKEN>  CLOUDFLARE_ACCOUNT_ID  CF_ZONE_ID
 # The Cloudflare token and the origin key are never printed.
 set -euo pipefail
@@ -23,7 +23,7 @@ REMOTE_ROOT="${REMOTE_ROOT:-/home/ubuntu/pixel-life}"
 ORIGIN_IP="${ORIGIN_IP:-51.254.203.108}"
 ORIGIN_HOST="${ORIGIN_HOST:-rf-origin.app.ailog.fr}"
 DNS_MODE="${DNS_MODE:-auto}"
-APP_URL="${APP_URL:-https://pixel-life.florent-g.workers.dev}"
+APP_URL="${APP_URL:-https://loose-pixels.florent-g.workers.dev}"
 CF_ZONE_ID="${CF_ZONE_ID:-62114316997926f94a39b912acd7c8d6}"
 export CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-869416db860830f14b8416d67606325c}"
 ALL_STEPS="dns,push,secrets,build,migrate,up,tls,nginx,verify,edge,verify-edge"

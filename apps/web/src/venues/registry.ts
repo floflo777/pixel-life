@@ -16,12 +16,12 @@ export interface NativeVenueEntry {
   load(): Promise<NativeVenue<GameStage>>;
 }
 
-/** Loose Pixels, the flagship venue (placeholder until T5). */
+/** Loose Pixels, the flagship venue. */
 export const PIXEL_LIFE: NativeVenueEntry = {
   manifest: {
     id: "pixel-life",
     name: "Loose Pixels",
-    version: "0.0.1-placeholder",
+    version: "0.1.0",
     kind: "native",
     room: "pixel-arena",
     requires: { ownedFriend: false },
@@ -29,7 +29,14 @@ export const PIXEL_LIFE: NativeVenueEntry = {
     results: { leaderboard: "score-desc", affectsScars: true },
     thumbnail: "/favicon.svg",
   },
-  load: () => import("./placeholder-venue.js").then((m) => m.placeholderPixelLife),
+  load: async () => {
+    const [game, shared] = await Promise.all([import("@pl/game"), import("@pl/shared")]);
+    // The real deterministic sim from @pl/shared drives the venue (same code the server replays).
+    const sim = { createSim: shared.createSim, encodeInputs: shared.encodeInputs } as unknown as Parameters<
+      typeof game.createLoosePixelsVenue
+    >[0]["sim"];
+    return game.createLoosePixelsVenue({ sim }) as unknown as NativeVenue<GameStage>;
+  },
 };
 
 /** The Seed Pack Booth: the stock SDK game in `apps/seed-pack`, built to `/venues/seed-pack/`. */

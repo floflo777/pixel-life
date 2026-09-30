@@ -13,7 +13,7 @@ set -euo pipefail
 ROOT="${ROOT:-/home/ubuntu/pixel-life}"
 DRY_RUN="${DRY_RUN:-0}"
 ORIGIN_HOST="${ORIGIN_HOST:-rf-origin.ailog.fr}"
-APP_URL="${APP_URL:-https://pixel-life.florent-g.workers.dev}"
+APP_URL="${APP_URL:-https://loose-pixels.florent-g.workers.dev}"
 VHOST_NAME="pixel-life-origin.conf"
 SNIPPET="/etc/nginx/snippets/pixel-life-cloudflare-allow.conf"
 ACME_ROOT="/var/www/pixel-life-acme"
