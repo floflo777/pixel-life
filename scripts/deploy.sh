@@ -151,27 +151,30 @@ step_edge() {
 step_verify_edge() {
   say "verify-edge: $APP_URL"
   [[ "$DRY_RUN" == 1 ]] && { log "skipped (dry run)"; return 0; }
-  local fail=0 code
-  expect() { # expect <want> <label> <curl args...>
-    local want="$1" label="$2"; shift 2
-    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$@")"
+  local fail=0 code jar
+  jar="$(mktemp)"
+  expect() { # expect <want> <label> <curl args...>; retried: a fresh Worker version takes a few seconds to roll out
+    local want="$1" label="$2" i; shift 2
+    for i in 1 2 3 4 5 6; do
+      code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$@" || true)"
+      [[ "$code" == "$want" ]] && break
+      sleep 5
+    done
     if [[ "$code" == "$want" ]]; then log "ok   $label → $code"; else log "FAIL $label → $code (want $want)"; fail=1; fi
   }
-  # The Worker may need a few seconds after `secret put` to roll out everywhere.
-  for _ in 1 2 3 4 5 6; do
-    [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$APP_URL/api/health")" == 200 ]] && break
-    sleep 5
-  done
+  local ws=(--http1.1 -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13'
+    -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H "Origin: $APP_URL")
   expect 200 "GET /" "$APP_URL/"
   expect 200 "GET /api/health (via Worker)" "$APP_URL/api/health"
   expect 200 "GET /api/ready (via Worker)" "$APP_URL/api/ready"
   log "     /api/ready body: $(curl -s --max-time 10 "$APP_URL/api/ready")"
-  # A WebSocket upgrade without a session must be refused by the origin's room handler (401), proving the path.
-  expect 401 "WS upgrade /ws/room/plaza (no session)" --http1.1 "$APP_URL/ws/room/plaza" \
-    -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' \
-    -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H "Origin: $APP_URL"
-  log "     WS refusal body: $(curl -s --http1.1 --max-time 10 "$APP_URL/ws/room/plaza" -H 'Connection: Upgrade' \
-    -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' -H "Origin: $APP_URL")"
+  # Without a session the origin's room handler refuses the upgrade (401): proves the Worker → nginx → server path.
+  expect 401 "WS upgrade /ws/room/plaza, no session" "${ws[@]}" "$APP_URL/ws/room/plaza"
+  # With a guest session (creates one guest row in the staging DB) the upgrade completes end to end (101).
+  curl -s -o /dev/null --max-time 10 -c "$jar" -X POST "$APP_URL/api/guest" -H "Origin: $APP_URL" \
+    -H 'content-type: application/json' -d '{}'
+  expect 101 "WS upgrade /ws/room/plaza, guest session" --max-time 3 -b "$jar" "${ws[@]}" "$APP_URL/ws/room/plaza"
+  rm -f "$jar"
   expect 403 "direct origin, no key (not via Cloudflare)" "https://$ORIGIN_HOST/api/health"
   expect 403 "direct origin, forged key, non-Cloudflare IP" -H 'x-pl-origin-key: forged' "https://$ORIGIN_HOST/api/health"
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 4 "http://$ORIGIN_IP:3100/healthz" || true)"
