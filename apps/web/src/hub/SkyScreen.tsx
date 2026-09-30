@@ -1,85 +1,88 @@
 /**
- * `/sky`: the hub mount point (GDD §6.5). Mounts `hubSceneFactory` (placeholder until `createHubScene` lands) on the
- * shared stage with a `HubNet` connection to the plaza room, shows the room population, resting Friends from
- * `/api/sky`, and the doors. If the server is down the hub stays a single-player plaza with a foggy-sky banner.
+ * `/sky`: The Sky, the Club Penguin-like hub (GDD §11–12), with the real `createHubScene` from `@pl/game`.
+ * - Every door works: venue doormats open the venue card (GDD §11.5: name, one-line rule, [enter]), the Greenhouse,
+ *   Daily Stone and Mend board doormats open their pages, bridges change room, Mend Well bubbles and scarred Friends
+ *   open the Mend flow, and any other Friend opens a mini card (visit its home island, its page, mute).
+ * - Coming back from a venue or a page lands in the room you left.
+ * - Loading / offline / error states: joining is a small status line; a room that refuses us or does not answer
+ *   leaves you on the offline single-player plaza with a retry (GDD §6.10); a broken scene shows an error with retry.
+ * - `/sky?home=<tokenId>` shows that Friend's home island instead.
  */
-import type { FriendView, RoomSlug } from "@pl/shared";
+import { isTokenIdStr, QUICK_CHAT_PHRASES, type EmoteName, type RoomSlug, type TokenIdStr } from "@pl/shared";
 import type { VenueIdentity } from "@pl/venue-kit";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import type { PageProps } from "../app/routes.js";
 import { useServices } from "../app/services.js";
 import { ensureGuest } from "../identity/bootstrap.js";
+import { loadLoaners } from "../identity/loaners.js";
+import { navigate } from "../lib/router.js";
 import { useStore } from "../lib/store.js";
-import { createHubNet, type HubNetState } from "../net/hub-net.js";
 import { LiveStage } from "../stage/LiveStage.js";
 import { FriendSprite } from "../ui/FriendSprite.js";
-import { Loading, LinkButton } from "../ui/kit.js";
-import { hubSceneFactory, type HubScene } from "./hub-scene.js";
+import { Button, ErrorBox, LinkButton, Loading } from "../ui/kit.js";
+import { venueIds } from "../venues/registry.js";
+import { doorAction, friendHref, homeHref, lastRoom, mendHref, rememberRoom, type DoorAction } from "./doors.js";
+import { fetchBelt } from "./home-api.js";
+import { HomeIsle } from "./HomeIsle.js";
+import { mountSky, type SkyHandle, type SkyStatus } from "./hub-scene.js";
+import "./sky.css";
 
-const ROOM: RoomSlug = "plaza";
+/** Display names of the rooms for the top bar. */
+const ROOM_TITLE: Readonly<Record<RoomSlug, string>> = {
+  plaza: "plaza",
+  "pixel-arena": "the arena",
+  "seed-booth": "greenhouse isle",
+  "sky-docks": "sky docks",
+  "daily-gate": "daily gate",
+};
 
-/** Resting Friends of a room with their appearance (skips any that fail to load). */
-async function loadResting(api: ReturnType<typeof useServices>["api"]): Promise<FriendView[]> {
-  const sky = await api.sky(ROOM);
-  const views = await Promise.all(
-    sky.friends.slice(0, 5).map(async (f): Promise<FriendView | null> => {
-      try {
-        return { appearance: await api.appearance(f.tokenId), pub: f.pub, loaned: false };
-      } catch {
-        return null;
-      }
-    }),
-  );
-  return views.filter((v): v is FriendView => v !== null);
+/** Quick-chat phrases offered in the wheel (ids into the shared phrase table). */
+const QUICK_CHAT: readonly { id: number; text: string }[] = [
+  { id: 0, text: "hi!" },
+  { id: 1, text: "gg" },
+  { id: 3, text: "help me mend?" },
+  { id: 5, text: "daily?" },
+  { id: 6, text: "follow me" },
+  { id: 15, text: "bye!" },
+].filter((p) => p.id < QUICK_CHAT_PHRASES);
+
+const EMOTE_LABEL: Readonly<Record<EmoteName, string>> = {
+  wave: "wave",
+  hop: "hop",
+  spin: "spin",
+  heart: "♥",
+  "pixel-burst": "burst",
+  sit: "sit",
+  flex: "flex",
+  stomp: "stomp",
+};
+
+type Card = { kind: "door"; action: Extract<DoorAction, { kind: "venue" }> } | { kind: "friend"; tokenId: TokenIdStr };
+
+/** The hub screen (or a home island with `?home=`). */
+export default function SkyScreen({ search }: PageProps) {
+  const home = search.get("home");
+  if (home && isTokenIdStr(home)) return <HomeIsle tokenId={home} />;
+  return <Sky />;
 }
 
-/** The hub screen. */
-export default function SkyScreen(_props: PageProps) {
+function Sky() {
   const s = useServices();
-  const { identity, revision } = useStore(s.identity.store);
-  const net = useMemo(() => createHubNet(), []);
-  const [netState, setNetState] = useState<HubNetState>("idle");
-  const [here, setHere] = useState<number | null>(null);
-  const scene = useRef<HubScene | null>(null);
-  const [resting, setResting] = useState<FriendView[]>([]);
+  const { identity } = useStore(s.identity.store);
+  const [status, setStatus] = useState<SkyStatus>({ kind: "joining" });
+  const [room, setRoom] = useState<RoomSlug>(() => lastRoom());
+  const [card, setCard] = useState<Card | null>(null);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [emotes, setEmotes] = useState<readonly EmoteName[]>([]);
+  const [attempt, setAttempt] = useState(0);
+  const [muted, setMuted] = useState<ReadonlySet<TokenIdStr>>(() => new Set());
+  const handle = useRef<SkyHandle | null>(null);
 
   useEffect(() => {
     if (identity.mode === "none") void ensureGuest(s).catch(() => undefined);
   }, [identity.mode, s]);
 
-  // Presence: connect once someone is playing; reconnect on identity changes (the socket carries the cookie identity).
-  useEffect(() => {
-    if (identity.mode === "none") return;
-    const roster = new Set<string>();
-    const offState = net.onState(setNetState);
-    const offMsg = net.on((m) => {
-      if (m[0] === "welcome") {
-        roster.clear();
-        for (const e of m[2]) roster.add(e.id);
-      } else if (m[0] === "join") roster.add(m[1].id);
-      else if (m[0] === "leave") roster.delete(m[1]);
-      else return;
-      setHere(roster.size);
-    });
-    void net.connect(ROOM).catch(() => setNetState("closed"));
-    return () => {
-      offState();
-      offMsg();
-      net.close();
-    };
-  }, [net, revision, identity.mode]);
-
-  useEffect(() => {
-    let live = true;
-    loadResting(s.api).then(
-      (v) => live && setResting(v),
-      () => undefined,
-    );
-    return () => {
-      live = false;
-    };
-  }, [s.api]);
-
+  const player = identity.mode === "none" ? null : `${identity.mode}:${identity.view.appearance.tokenId}`;
   const vid = useMemo<VenueIdentity | null>(
     () =>
       identity.mode === "none"
@@ -89,51 +92,245 @@ export default function SkyScreen(_props: PageProps) {
   );
   const vidRef = useRef(vid);
   vidRef.current = vid;
-  useEffect(() => {
-    if (vid) scene.current?.setIdentity(vid);
-  }, [vid]);
-  useEffect(() => {
-    scene.current?.setResting(resting);
-  }, [resting]);
 
-  if (!vid) return <Loading label="your Friend is on its way" />;
-  const foggy = netState === "closed";
+  if (!vid || !player) return <Loading label="your Friend is on its way" />;
+
+  const closeCard = (): void => {
+    if (card?.kind === "door") handle.current?.scene.exitVenue();
+    setCard(null);
+  };
+
   return (
-    <div className="sky" data-testid="sky">
+    <div className="sky" data-testid="sky" data-status={status.kind} data-room={room}>
       <LiveStage
+        key={`${player}:${attempt}`}
         className="sky-stage"
-        label="The Sky plaza"
-        mount={(stage, rt) => {
-          const hub = hubSceneFactory(stage, net, () => vidRef.current ?? vid, rt);
-          scene.current = hub;
-          hub.setResting(resting);
+        label={`The Sky, ${ROOM_TITLE[room]}: walk with arrows or WASD, tap to walk, walk into a door to enter`}
+        mount={(stage) => {
+          let gone = false;
+          let sky: SkyHandle | null = null;
+          setStatus({ kind: "joining" });
+          void (async () => {
+            const loaners = await loadLoaners().catch(() => []);
+            if (gone) return;
+            sky = await mountSky({
+              stage,
+              identity: () => vidRef.current ?? vid,
+              api: s.api,
+              audio: s.audio,
+              room: lastRoom(),
+              venues: venueIds(),
+              loaners,
+              belt: fetchBelt,
+              onStatus: (st) => !gone && setStatus(st),
+              onEnterVenue: (e) => {
+                rememberRoom(e.room);
+                const action = doorAction(e.venueId, e.mode);
+                if (action.kind === "page") navigate(action.href);
+                else if (action.kind === "venue") setCard({ kind: "door", action });
+                else sky?.scene.exitVenue();
+              },
+              onRoomChange: (r) => {
+                rememberRoom(r);
+                if (!gone) setRoom(r);
+              },
+              onMendRequest: (tokenId) => navigate(mendHref(tokenId)),
+              onFriendTap: (tokenId) => setCard({ kind: "friend", tokenId }),
+            }).catch((e: unknown) => {
+              if (!gone) setStatus({ kind: "error", why: e instanceof Error ? e.message : String(e) });
+              return null;
+            });
+            if (!sky) return;
+            if (gone) return sky.dispose();
+            handle.current = sky;
+            setEmotes(sky.emotes);
+          })();
           return () => {
-            scene.current = null;
-            hub.dispose();
+            gone = true;
+            handle.current = null;
+            sky?.dispose();
           };
         }}
-        fallback={<FriendSprite view={vid.friend} scale={8} />}
+        fallback={
+          <div className="stage-fallback-card">
+            <FriendSprite view={vid.friend} scale={8} />
+            <p>This device can't draw The Sky (WebGL2). Every door is still here:</p>
+            <nav className="sky-fallback-doors" aria-label="Doors">
+              <LinkButton to="/play" variant="now">
+                ▶ loose pixels
+              </LinkButton>
+              <LinkButton to="/venue/seed-pack">seed pack booth</LinkButton>
+              <LinkButton to="/regrow">greenhouse</LinkButton>
+              <LinkButton to="/board">daily stone</LinkButton>
+              <LinkButton to="/mend">mend board</LinkButton>
+            </nav>
+          </div>
+        }
       />
+
       <div className="sky-top mono">
-        <span className="display">the sky · plaza</span>
-        <span role="status">
-          {netState === "open" ? `● ${here ?? 1} here` : netState === "connecting" ? "joining…" : foggy ? "" : ""}
+        <span className="display">the sky · {ROOM_TITLE[room]}</span>
+        <span role="status" aria-live="polite">
+          {status.kind === "joining"
+            ? "joining…"
+            : status.kind === "online"
+              ? "● live"
+              : status.kind === "offline"
+                ? "offline"
+                : ""}
         </span>
       </div>
-      {foggy && (
-        <p className="notice sky-fog" role="status">
-          The sky is foggy: other Friends will be back soon. You can still play.
-        </p>
+
+      {status.kind === "offline" && (
+        <div className="notice sky-fog" role="status">
+          <span>The sky is foggy: you're on your own island for now. Every door still works.</span>
+          <Button variant="paper" onClick={() => handle.current?.retry()}>
+            retry
+          </Button>
+        </div>
       )}
-      <nav className="doors" aria-label="Doors">
-        <LinkButton to="/play" variant="now" big>
+      {status.kind === "error" && (
+        <div className="sky-error">
+          <ErrorBox message={`The Sky couldn't open: ${status.why}`} onRetry={() => setAttempt((a) => a + 1)} />
+        </div>
+      )}
+
+      <div className="sky-hud">
+        <LinkButton to="/play" variant="now" big aria-label="play Loose Pixels now">
           ▶ play
         </LinkButton>
-        <LinkButton to="/shop">greenhouse</LinkButton>
-        <LinkButton to="/venue/seed-pack">seed pack booth</LinkButton>
-        <LinkButton to="/board">daily stone</LinkButton>
-        <LinkButton to="/mend">mend well</LinkButton>
-      </nav>
+        <div className="sky-emotes" role="group" aria-label="Emotes">
+          {emotes.map((e, i) => (
+            <Button
+              key={e}
+              className="sky-emote"
+              aria-label={`${e} (key ${i + 1})`}
+              onClick={() => handle.current?.scene.emote(e)}
+            >
+              {EMOTE_LABEL[e]}
+            </Button>
+          ))}
+          <Button
+            className="sky-emote"
+            aria-expanded={chatOpen}
+            aria-controls="sky-chat"
+            onClick={() => setChatOpen((o) => !o)}
+          >
+            say…
+          </Button>
+        </div>
+        {chatOpen && (
+          <div id="sky-chat" className="sky-chat" role="menu" aria-label="Quick chat">
+            {QUICK_CHAT.map((p) => (
+              <Button
+                key={p.id}
+                role="menuitem"
+                onClick={() => {
+                  handle.current?.scene.say(p.id);
+                  setChatOpen(false);
+                }}
+              >
+                {p.text}
+              </Button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {card && (
+        <SkyCard
+          card={card}
+          muted={card.kind === "friend" && muted.has(card.tokenId)}
+          onClose={closeCard}
+          onEnter={(href) => {
+            setCard(null);
+            navigate(href);
+          }}
+          onToggleMute={(tokenId) => {
+            const next = new Set(muted);
+            const on = !next.has(tokenId);
+            if (on) next.add(tokenId);
+            else next.delete(tokenId);
+            handle.current?.scene.setMuted(tokenId, on);
+            setMuted(next);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** The venue card (GDD §11.5) or a Friend's mini card, pinned over the stage. Esc or "stay" closes it. */
+function SkyCard({
+  card,
+  muted,
+  onClose,
+  onEnter,
+  onToggleMute,
+}: {
+  card: Card;
+  muted: boolean;
+  onClose(): void;
+  onEnter(href: string): void;
+  onToggleMute(tokenId: TokenIdStr): void;
+}) {
+  const panel = useRef<HTMLDivElement>(null);
+  // Focus the primary action so Enter enters and Esc stays (keyboard players never lose their place).
+  useEffect(() => {
+    panel.current?.querySelector<HTMLButtonElement>("button")?.focus();
+  }, [card]);
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>): void => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      onClose();
+    }
+  };
+  if (card.kind === "door") {
+    const a = card.action;
+    return (
+      <div
+        ref={panel}
+        className="sky-card"
+        role="dialog"
+        aria-labelledby="sky-card-title"
+        onKeyDown={onKeyDown}
+        data-testid="venue-card"
+      >
+        <h2 className="display" id="sky-card-title">
+          {a.name}
+        </h2>
+        <p>{a.rule}</p>
+        <div className="sky-card-actions">
+          <Button variant="now" onClick={() => onEnter(a.href)}>
+            enter
+          </Button>
+          <Button onClick={onClose}>stay in the sky</Button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div
+      ref={panel}
+      className="sky-card"
+      role="dialog"
+      aria-labelledby="sky-card-title"
+      onKeyDown={onKeyDown}
+      data-testid="friend-card"
+    >
+      <h2 className="display" id="sky-card-title">
+        #{card.tokenId}
+      </h2>
+      <div className="sky-card-actions">
+        <Button variant="now" onClick={() => onEnter(homeHref(card.tokenId))}>
+          visit island
+        </Button>
+        <Button onClick={() => onEnter(friendHref(card.tokenId))}>friend page</Button>
+        <Button onClick={() => onToggleMute(card.tokenId)} aria-pressed={muted}>
+          {muted ? "unmute" : "mute"}
+        </Button>
+        <Button onClick={onClose}>close</Button>
+      </div>
     </div>
   );
 }
