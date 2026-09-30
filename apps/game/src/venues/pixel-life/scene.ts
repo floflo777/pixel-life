@@ -54,8 +54,11 @@ import { KIND, PX } from "./sim-module";
 
 /** World units per sim unit (1 u = 1 sprite pixel = the Friend's voxel size). */
 export const U = 0.15;
-/** Old Gulp's voxel edge in the run scene: its 3 tooth sockets (4 voxels apart) line up with the sim's teeth. */
-export const GULP_RUN_VOXEL = 0.2;
+/**
+ * Old Gulp's voxel edge in the run scene: big enough to loom over the island (≈ 6.7 world units long), small enough that
+ * the whole whale fits the dollied-out frame. The sim's teeth are marked by ground rings (the gameplay truth) under its jaw.
+ */
+export const GULP_RUN_VOXEL = 0.14;
 /** In-run camera pitch (art bible: 32°); the Friend plate is pitched back by it so its face meets the camera. */
 export const RUN_PITCH_DEG = 32;
 const DEG = Math.PI / 180;

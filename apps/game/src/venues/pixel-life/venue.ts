@@ -15,7 +15,10 @@ import {
   type Hex64,
   type RunAck,
   type RunKind,
+  BOT_PROFILES,
+  createBot,
   SimEvents as EV,
+  type Bot,
   type Sim,
   type SimConfig,
   type SimEvent as AnyEvent,
@@ -123,8 +126,10 @@ export interface LoosePixelsDebug {
   /** Fires a fling now (angle 0..4095, power 0..1). */
   readonly fling: (ang: number, p: number) => void;
   readonly shareCanvas: () => HTMLCanvasElement | null;
-  /** Fast-forwards the sim by `ticks` with no inputs (events are drained silently); capture tooling only. */
+  /** Fast-forwards the sim by `ticks` (autopilot inputs only; events drained silently); capture tooling only. */
   readonly advance: (ticks: number) => void;
+  /** Lets the sim's balance bot play (attract mode, captures); null hands control back. */
+  readonly autopilot: (profile: keyof typeof BOT_PROFILES | null, seed?: number) => void;
 }
 
 /** A mounted Loose Pixels instance. */
@@ -193,7 +198,10 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   const total = popcount(front);
   const startLostNow = () =>
     effectiveLost(friendView().pub.scars, Date.now(), appearance.tokenId, { goldHeld: friendView().pub.goldHeld });
-  /** Generic bubbles only for creature renderers that don't speak for themselves (the real Munchies do). */
+  /**
+   * The real Munchies speak for themselves and draw their own spawn ripple; generic bubbles and the scene ripple are
+   * only for injected renderers that don't (flips to true as soon as any visual speaks).
+   */
   let creaturesSpeak = !opts.creatureFactory;
   const GULP_BUBBLE = -1;
   const buildScene = (startLost: Hex64, seed: number, arena: { a: number; b: number }): RunScene =>
@@ -235,6 +243,12 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   let prev: FullSimView | null = null;
   let cur: FullSimView | null = null;
   let log = new InputLog();
+  let pilot: Bot | null = null;
+  /** Autopilot inputs for this tick (the bot reads the view like a player reads the screen). */
+  const pilotInputs = (): void => {
+    if (!pilot || !cur) return;
+    for (const i of pilot.decide(cur)) log.push(i);
+  };
   const steer = new SteerEncoder();
   const warp = new TimeWarp(reduced);
   const keys = new KeyboardAim();
@@ -258,7 +272,6 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   let sweepKey = false;
   let lastPhase = -1;
   let musicSlow = 0;
-  let dollyUntil = 0;
   const tmp = new Vector3();
   const tmp2 = new Vector3();
 
@@ -429,7 +442,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         audio.cue("slurp.tongue", { x: pan() });
         break;
       case "spawn":
-        scene.ripple(x, z);
+        if (!creaturesSpeak) scene.ripple(x, z);
         audio.cue("creature.spawn", { x: pan(), gain: 0.5 });
         break;
       case "explode":
@@ -473,7 +486,6 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
         hud.showBanner("gulp!", "coral", now(), 1200, true);
         const p = projectSim(x, z);
         hud.setEdgeBand(p && p.x < canvas.clientWidth / 2 ? "left" : "right");
-        if (!reduced) dollyUntil = time + 12;
         break;
       }
       case EV.GULP_EV_BITE:
@@ -504,7 +516,6 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       case EV.GULP_EV_REGROW:
         audio.music?.setMood("normal");
         hud.setEdgeBand(null);
-        dollyUntil = 0;
         break;
       default:
         break;
@@ -1020,6 +1031,7 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
   const unsubInput = stage.input.on(onInput);
   const unsubTick = stage.onTick(() => {
     if (state !== "run" || paused || resumeAt > 0 || !sim || sim.done) return;
+    pilotInputs();
     const inputs = log.flush(sim.tick);
     sim.step(inputs);
     const before = cur ?? sim.view();
@@ -1065,13 +1077,16 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
     }
     if (!cur || !prev) return;
     scene.sync(prev, cur, state === "run" ? alpha : 1, time, dt * scale);
+    const gulpUp = cur.gulp.phase >= 1 && cur.gulp.phase <= 4;
     // Camera: lerp(islandCentre, friend + v·0.12 s, 0.35); dolly out during Old Gulp.
     const b = body();
     if (b && state !== "results") {
-      const k = reduced ? 0.15 : 0.35;
+      // While Old Gulp is up the camera favours the island centre so the whale and the whole rim stay in frame.
+      const k = reduced ? 0.15 : gulpUp ? 0.12 : 0.35;
       stage.rig.follow(tmp.set((b.x + b.vx * 0.12) * U * k, 0, (b.z + b.vz * 0.12) * U * k + CAM_Z));
     }
-    const wantDist = pose.distance * (time < dollyUntil ? 1.12 : 1);
+    // Old Gulp: dolly out 12 % over 0.6 s (GDD §2.4), none under reduced motion (the static framing fits).
+    const wantDist = pose.distance * (gulpUp && !reduced ? 1.12 : 1);
     stage.rig.pose.distance += (wantDist - stage.rig.pose.distance) * Math.min(1, dt / 0.6);
     // HUD.
     const f = cur.friend;
@@ -1160,12 +1175,17 @@ async function mountVenue(host: VenueHost<GameStage>, opts: LoosePixelsOptions):
       advance: (ticks) => {
         if (!sim || state !== "run") return;
         for (let i = 0; i < ticks && !sim.done; i++) {
+          pilotInputs();
           sim.step(log.flush(sim.tick));
           sim.drainEvents();
+          cur = sim.view();
         }
         cur = sim.view();
         prev = cur;
         if (sim.done) endRun();
+      },
+      autopilot: (profile, seed = 1) => {
+        pilot = profile ? createBot(BOT_PROFILES[profile], seed) : null;
       },
       state: () => state,
       view: () => cur,
